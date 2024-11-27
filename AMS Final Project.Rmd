@@ -1,0 +1,44 @@
+---
+title: "Regional Well Being"
+author: Akash Mittal, Maged Saeed Abdo Mostafa Kharshom, Precious Prince, Franco Reinaldo
+  Bonifacini
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(openxlsx)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(reshape2)
+library(fpp3)
+library(GGally)
+```
+
+## Abstract
+
+|   This project aims to **estimate the effect of various factors such as health, education, and income among others, on the life satisfaction of people in different regions from different countries**. For this, we carried out a robust approach with MEMs & Robust Estimators. Also, we performed a robust clustering of various factors into different clusters of life satisfacton.
+
+
+
+## Introduction
+
+|   For this project, we used an OECD database called **indicators and life-satisfaction scores for different regions within the different countries**. It is important to highlight that data is not constant regarding result's years among countries, but for the project's purpose it is constant as we considered it as **“the latest available data”**. We also assumed that in a  year or two, there are barely any drastic changes in a country policies or life-satisfaction scores.
+
+```{r, echo=FALSE}
+df_wb <- read.xlsx("C:\\Users\\franc\\Documents\\GitHub\\ams_final_project\\Dataset\\OECD_Well_Being.xlsx")
+```
+
+|   In the original dataset, which we called **df_wb**, we have 447 tuples and 28 columns.
+```{r, echo=FALSE}
+dim(df_wb)
+```
+
+|   The raw variables included are:
+
+1.	**Country (chr):** includes the name of all the countries included in the results.
+2.	**Region (chr):** includes the name of all the cities from the countries included in the results.
+3.	**Code (chr):** code associated to each pair country-city.
+4.	**Population.with.at.least.secondary.education.(%) (chr):** provides a certain freshness to the wine.
+5.	
