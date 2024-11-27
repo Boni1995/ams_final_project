@@ -1,6 +1,10 @@
 library(openxlsx)
 library(dplyr)
 library(tidyr)
+library(ggplot2)
+library(reshape2)
+library(fpp3)
+library(GGally)
 
 # Dataset regarding well being
 df_wb <- read.xlsx("C:\\Users\\franc\\Documents\\GitHub\\ams_final_project\\Dataset\\OECD_Well_Being.xlsx")
@@ -70,4 +74,68 @@ df_wb <- df_wb %>%
 df_wb <- as.data.frame(df_wb)
 
 summary(df_wb)
+str(df_wb)
 head(df_wb, 10)
+
+# Check correlations to see if we can reduce variables
+
+# Matrix correlation
+cor_matrix <- cor(df_wb[,4:ncol(df_wb)], use = "complete.obs")
+
+# Melt matrix
+cor_data <- melt(cor_matrix)
+
+# Plot heatmap
+ggplot(cor_data, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, 
+                       limit = c(-1, 1), space = "Lab", 
+                       name = "Correlación")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  coord_fixed()
+
+# Check correlation in a dataframe for easier analysis
+colnames(cor_data) <- c("Variable1", "Variable2", "Correlation")
+cor_data
+
+# We drop the following variables because they can be explained by others (high correlation) and probably have less
+# information than othe correlated variables (this we checked it manually with the dataset):
+# unemployment: -0.9 corr w/jobs
+# life expectancy: 0.9 corr w/health
+# internet speed: 0.87 corr w/accesibility to services
+# perceived social network support: 0.83 corr w/community
+# voter turnout: 0.99 corr w/civic engagement
+# air pollution: -0.97 w/environment
+# population secondary education: useless for us
+# household income: we have income
+# employment rate: 0.92 corr w/jobs
+
+df_wb <- df_wb[, c(1:3, 8:9, 13, 15, 17:ncol(df_wb))]
+
+head(df_wb, 5)
+
+# Upper bound in scaled variables is 10
+df_wb[8:ncol(df_wb)] <- lapply(df_wb[8:ncol(df_wb)], function(x) ifelse(x > 10, 10, x))
+
+head(df_wb, 5)
+
+# Scale numeric values (not scaled) between 0 and 10
+cols_to_scale <- 4:7
+
+df_wb[cols_to_scale] <- lapply(df_wb[cols_to_scale], function(x) {
+  x_min <- min(x, na.rm = TRUE)
+  x_max <- max(x, na.rm = TRUE)
+  (x - x_min) / (x_max - x_min) * 10
+})
+
+head(df_wb, 5)
+summary(df_wb)
+
+# Modify columns' names
+colnames(df_wb)[4] <- "Homicide.rate.(0-10)"
+colnames(df_wb)[5] <- "Mortality.rate.(0-10)"
+colnames(df_wb)[6] <- "Broadband.access.(0-10)"
+colnames(df_wb)[7] <- "N.rooms.per.person (0-10)"
+
+head(df_wb, 5)
+summary(df_wb)
