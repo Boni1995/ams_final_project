@@ -7,38 +7,387 @@ output: pdf_document
 ---
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-library(openxlsx)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(reshape2)
-library(fpp3)
-library(GGally)
+library(openxlsx) # to read and write Excel files (.xlsx) in R
+library(tidyr) # data format conversion, tidying and transforming data
+library(tidyverse) # Whole package of libraries (dplyr, tidyr, ggplot2, readr, purrr, tibble, stringr, forcats)
+
+library(ggplot2) # for plotting
+library(reshape2) # for reshaping and transforming data
+library(fpp3) # used for forecasting in R
+library(GGally) # functionality of ggplot2 as it provides additional geoms and functions for data visualization
+library(ggcorrplot) # used for the heatmap correlation matrix
+library(fmsb) # used for creating radar charts
+library(plotly) # used for the interactive plot
+library(randomcoloR) # used for generating colors
+
+library(lme4) # for linear mixed effects modeling + functions for fitting and analyzing linear mixed effects models
+library(insight) # functions for model-agnostic interpretation and visualization of regression models
 ```
 
-## Abstract
+# Abstract
 
 |   This project aims to **estimate the effect of various factors such as health, education, and income among others, on the life satisfaction of people in different regions from different countries**. For this, we carried out a robust approach with MEMs & Robust Estimators. Also, we performed a robust clustering of various factors into different clusters of life satisfacton.
 
 
 
-## Introduction
+# Introduction
 
-|   For this project, we used an OECD database called **indicators and life-satisfaction scores for different regions within the different countries**. It is important to highlight that data is not constant regarding result's years among countries, but for the project's purpose it is constant as we considered it as **“the latest available data”**. We also assumed that in a  year or two, there are barely any drastic changes in a country policies or life-satisfaction scores.
+|   For this project, we utilized the OECD database focusing on **indicators and life-satisfaction scores across various regions within different countries**. This comprehensive dataset captures diverse dimensions of well-being, such as education, employment, health, environment, and social support, which together contribute to a region's overall quality of life. The indicators allow for meaningful comparisons between regions, highlighting disparities and trends. Although the data reflects different years depending on the country, for consistency we adopted the **latest available data**.
+
+|   It is essential to acknowledge that while some variability exists in the timing of the data, we assumed that any changes within a year or two would be minimal and unlikely to significantly alter policies or life-satisfaction scores. This approach enables us to draw relevant conclusions about the factors influencing regional well-being. By examining key metrics such as income, safety, health, and life satisfaction, this report aims to present a clear picture of well-being across OECD regions and highlight patterns that can inform future policies and initiatives.
+
+# Original Dataset
+
+|   To execute this project, a dataset containing the different metrics regarding well-being was downloaded and linked to a variable named **df_wb**.
 
 ```{r, echo=FALSE}
 df_wb <- read.xlsx("C:\\Users\\franc\\Documents\\GitHub\\ams_final_project\\Dataset\\OECD_Well_Being.xlsx")
 ```
 
-|   In the original dataset, which we called **df_wb**, we have 447 tuples and 28 columns.
+|   The variable **df_wb** contains 447 tuples and 28 columns (25 are the attributes to analyze).
 ```{r, echo=FALSE}
 dim(df_wb)
 ```
 
-|   The raw variables included are:
+|   The variables included are the following:
 
-1.	**Country (chr):** includes the name of all the countries included in the results.
-2.	**Region (chr):** includes the name of all the cities from the countries included in the results.
-3.	**Code (chr):** code associated to each pair country-city.
-4.	**Population.with.at.least.secondary.education.(%) (chr):** provides a certain freshness to the wine.
-5.	
+1.	**Country:** Includes the name of all the countries included in the results.
+2.	**Region:** Includes the name of all the cities from the countries included in the results.
+3.	**Code:** Code associated to each pair country-city.
+4.	**Population.with.at.least.secondary.education.(%):** Percentage of the population completing secondary education.
+5.	**Employment rate (%):** Percentage of the working-age population employed.
+6.  **Unemploy-ment rate (%):** Percentage of people without jobs actively seeking work.
+7.  **Household disposable income per capita (USD PPP):** Average income available per person, in USD.
+8.  **Homicide rate (per 100k):** Number of homicides per 100.000 people.
+9.  **Mortality rate (per 1k):** Deaths per 1,000 people annually.
+10. **Life expectancy:**  Average expected lifespan (years).
+11. **Air pollution (level of PM2.5, µg/m³):** Fine particulate air pollution levels.
+12. **Voter turnout (%):** Share of voters participating in elections.
+13. **Broadband access (% of household):** Percentage of households with internet access.
+14. **Internet download speed 2021-Q4 (%):** Internet speed growth/decline in 2021-Q4.
+15. **Number of rooms per person:** Average living space per person.
+16. **Perceived social network support  (%):** Percentage of people with available social support.
+17. **Self assessment of life satisfaction (0-10):** Subjective rating of overall happiness.
+18. **Education (0-10):** Regional score for education.
+19. **Jobs (0-10):** Score based on employment indicators.
+20. **Income (0-10):** Score for household income.
+21. **Safety (0-10):** Regional score for personal safety.
+22. **Health (0-10):** Score for health indicators.
+23. **Environment (0-10):** Score for environmental quality.
+24. **Civic engagement (0-10):** Score for public participation.
+25. **Accessibility to services (0-10):** Availability of public services.
+26. **Housing (0-10):** Score for housing quality and affordability.
+27. **Community (0-10):** Score for social cohesion.
+28. **Life satisfaction (0-10):** Overall happiness score.
+
+|   The value type of each attribute are the following:
+
+```{r, echo=FALSE}
+sapply(df_wb, class)
+```
+
+# Data Manipulation and EDA
+
+## Null values
+
+|   Before analyzing the hypothesis and attributes, a check on the data structure was conducted to prevent potential errors in the future. This involved examining both data types and null values.
+
+|   First we checked the **null values** to determine their significance and understand which is the best action to take regaridng this matter. After checking that there were no null values, but yet we couldn't perform some calculations on the attributes, we did a more detailed analysis to realize that there were null values which were replaced by the **character ".."**.
+
+```{r, echo=FALSE}
+wb_missing_values <- sapply(df_wb, function(col) sum(col == "..")/nrow(df_wb)*100)
+as.data.frame(wb_missing_values)
+```
+
+|   Taking this into account, we concluded that there were no significance level of null values (in the form of ".."), so for the moment we decided to keep all the information and look for further actions regarding null values.
+
+```{r, echo=FALSE}
+missing_values_country <- aggregate(. ~ Country+Region, data = df_wb, function(x) sum(x == ".."))
+missing_values_country <- as.data.frame(missing_values_country)
+
+missing_values_country <- aggregate(
+  rowSums(df_wb[, 4:ncol(df_wb)] == "..") ~ Country + Region,
+  data = df_wb,
+  FUN = sum
+)
+
+colnames(missing_values_country) <- c("Country", "Region", "n_null")
+
+missing_values_country <- missing_values_country[missing_values_country$n_null > 0, ]
+
+missing_values_country <- table(missing_values_country$Country)
+missing_values_country <- as.data.frame(missing_values_country)
+colnames(missing_values_country) <- c("Country", "n_cities")
+
+n_country <- table(df_wb$Country)
+n_country <- as.data.frame(n_country)
+colnames(n_country) <- c("Country", "n_cities")
+
+missing_by_country <- merge(n_country, missing_values_country, by = "Country")
+colnames(missing_by_country) <- c("Country", "n_cities", "n_missing")
+missing_by_country$p_na <- (missing_by_country$n_missing/missing_by_country$n_cities)*100
+
+missing_by_country
+```
+
+|   Also, we can see that, when analyzing the null values by country, there were some cases that have 100% of missing values in some attributes. This is why, we decided to drop **Costa Rica, Iceland and Japan** as they had attributes without values, and this would have not been useful for our project. In addition to them, we also decided to exclude Türkiye as we found poor the information contained in the Life.Satisfaction.(0-10) attribute.
+
+|   Moreover, for those cases with some null values, we decided to replace them with the **median of the country**. We decided this because the data is divided by city, so we could use the median of the rest cities of the country for those cities with null values. Furthermore, the median is a better option than the mean as we can avoid the influence of any possible outlier.
+
+|   Finally, after all this data manipulation, we can see that now the data type of each attribute is correct.
+
+```{r, echo=FALSE}
+df_wb <- df_wb[!(df_wb$Country == "Costa Rica" | df_wb$Country == "Iceland" | df_wb$Country == "Japan" | df_wb$Country == "Türkiye"), ]
+
+df_wb <- df_wb %>% 
+  mutate(across(everything(), ~ ifelse(. == "..", NA, .)))
+
+df_wb <- df_wb %>%
+  mutate(across(.cols = which(!names(df_wb) %in% names(df_wb)[1:3]), 
+                .fns = ~ as.numeric(.)))
+
+df_wb <- df_wb %>% 
+  group_by(Country) %>% 
+  mutate(across(3:(ncol(df_wb)-1), ~ replace_na(., median(., na.rm = TRUE)))) %>% 
+  ungroup()
+
+df_wb <- as.data.frame(df_wb)
+
+sapply(df_wb, class)
+```
+
+## Variables and Correlation
+|   Continuing with the data manipulation, we decided to carry out a correlation analysis to determine the need of any further removal of attributes. For this, we decided to plot a correlation heatmap to rapidly see any pair of attributes highly correlated, and with thise, determine the removal of one of them.
+
+```{r, echo=FALSE}
+cor_matrix <- cor(df_wb[,4:ncol(df_wb)], use = "complete.obs")
+
+cor_data <- melt(cor_matrix)
+
+ggplot(cor_data, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, 
+                       limit = c(-1, 1), space = "Lab", 
+                       name = "Correlation")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 5),
+        axis.text.y = element_text(size = 5),
+        axis.title.x = element_blank(),
+    axis.title.y = element_blank())+
+  coord_fixed()
+```
+
+| As a result of this analysis, we decided to drop the following variables, because they can be explained by others (high correlation) and probably have less information than other correlated variables (this was checked manually with the dataset):
+
+1.  **Unemploy-ment.rate.(%):** -0.9 of correlation with Jobs.(0-10).
+2.  **Life.expectancy:** 0.9 of correlation with Health.(0-10).
+3.  **Internet.download.speed.2021-Q4.(%):** 0.87 of correlation with Accessiblity.to.services.(0-10).
+4.  **Perceived.social.network.support.(%):** 0.83 of correlation with Community.(0-10).
+5.  **Voter.turnout.(%):** 0.99 of correlation with Civic.engagement.(0-10).
+6.  **Air.pollution.(level.of.PM2.5,.µg/m³):** -0.97 of correlation with Environment.(0-10).
+7.  **Population.with.at.least.secondary.education.(%):** 0.99 of correlation with Education.(0-10).
+8.  **Household.disposable.income.per.capita.(USD.PPP):** 0.99 of correlation with Income.(0-10).
+9.  **Employment.rate.(%):** 0.92 of correlation with Jobs.(0-10).
+
+|   Additionally, we decided to remove also Homicide.rate.(per.100k) and Mortality.rate.(per.1k) because we assumed that can be represented by Safety (0-10). Also we removed Broadband.access.(%.of.household) and Number.of.rooms.per.person as we did not consider it useful for the project. Last but not least, we removed Self.assessment.of.life.satisfaction.(0-10) as we directly used Life.satisfaction.(0-10).
+```{r, echo=FALSE}
+df_wb <- df_wb[, c(1:3, 18:ncol(df_wb))]
+```
+
+|   Taking into account the resulting dataset, we decided to exclude those countries that have less than 10 cities in the dataset, as we have 10 variables plus the main variable (life satisfaction).
+
+```{r, echo=FALSE}
+df_wb <- df_wb %>%
+  group_by(Country) %>%                        # Agrupar por país
+  filter(n_distinct(Region) >= 10) %>%      # Contar ciudades únicas y filtrar
+  ungroup() 
+```
+
+|   The last step of the data manipulation was to set the upper bound of the scale to 10, as there were some cases with decimals that ended up being a little bit over 10.
+
+```{r, echo=FALSE}
+df_wb[4:ncol(df_wb)] <- lapply(df_wb[4:ncol(df_wb)], function(x) ifelse(x > 10, 10, x))
+```
+
+|   So the final dataset used in the models was the following, containing 295 tuples and 14 columns (10 are the attributes to analyze, plus the life satisfaction attribute):
+
+```{r, echo=FALSE}
+dim(df_wb)
+
+summary(df_wb)
+```
+
+
+## EDA
+
+|   **Life Satisfaction by Country with Average Scores** : This box plot shows the distribution of life satisfaction scores across different countries, with their respective average scores annotated in red.
+```{r, echo=FALSE}
+#High-Level Distribution of Life Satisfaction
+
+# Compare life satisfaction across countries
+
+# Calculate both Average and Max Life Satisfaction for Annotation
+country_avg <- df_wb %>%
+  group_by(Country) %>%
+  summarise(
+    Average_Life_Satisfaction = mean(`Life.satisfaction.(0-10)`, na.rm = TRUE),
+    Max_Life_Satisfaction = max(`Life.satisfaction.(0-10)`, na.rm = TRUE)
+  )
+
+# Boxplot with Average Annotations
+ggplot(df_wb, aes(x = reorder(Country, `Life.satisfaction.(0-10)`), y = `Life.satisfaction.(0-10)`)) +
+  geom_boxplot(fill = "skyblue", color = "black") +
+  geom_text(data = country_avg, 
+            aes(x = Country, y = Max_Life_Satisfaction + 0.5, 
+                label = round(Average_Life_Satisfaction, 2)), 
+            size = 3, color = "red") +
+  coord_flip() +
+  ggtitle("Life Satisfaction by Country with Average Scores") +
+  xlab("Country") +
+  ylab("Life Satisfaction (0-10)") +
+  theme_minimal()
+
+
+```
+
+|   **Correlation Heatmap of Metrics** :This heatmap reveals the correlation between various metrics in the dataset.
+
+```{r, echo=FALSE}
+# Heatmap of correlations
+
+# Select only numeric columns for correlation
+numeric_data <- df_wb %>% select_if(is.numeric)
+
+# Compute the correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs")
+
+
+
+ggcorrplot(cor_matrix, 
+           method = "square",       # Use square tiles for the heatmap
+           type = "upper",          # Show only the upper triangle
+           lab = TRUE,              # Display correlation values
+           lab_size = 3,            # Size of the labels
+           title = "Correlation Heatmap of Metrics", 
+           colors = c("blue", "white", "red"))  # Custom color scale
+
+
+
+```
+
+|   **Radar Chart for All 15 Countries** : This radar chart compares the average scores of 15 countries across multiple attributes such as Education, Jobs, Income, Housing, and Environment.
+
+```{r, echo=FALSE}
+#Radar Chart for Top Countries
+
+# Calculate average life satisfaction per country
+country_ranking <- df_wb %>%
+  group_by(Country) %>%
+  summarise(Average_Life_Satisfaction = mean(`Life.satisfaction.(0-10)`, na.rm = TRUE)) %>%
+  arrange(desc(Average_Life_Satisfaction))
+
+# Selecting all countries (Top 15)
+all_countries <- country_ranking$Country
+all_data <- df_wb %>% filter(Country %in% all_countries)
+
+# Aggregating mean attributes for each country
+radar_data <- all_data %>%
+  group_by(Country) %>%
+  summarise_at(vars(`Education.(0-10)`, `Jobs.(0-10)`, `Income.(0-10)`, `Safety.(0-10)`,
+                    `Health.(0-10)`, `Environment.(0-10)`, `Civic.engagement.(0-10)`,
+                    `Accessiblity.to.services.(0-10)`, `Housing.(0-10)`, `Community.(0-10)`, 
+                    `Life.satisfaction.(0-10)`), mean, na.rm = TRUE)
+
+# Define Colors Dynamically for All Countries
+country_colors <- distinctColorPalette(nrow(radar_data)) # Generate unique colors dynamically
+names(country_colors) <- radar_data$Country # Assign country names to colors
+
+# getting the  Radar Chart Data ready 
+max_vals <- rep(10, ncol(radar_data) - 1)  # Set max values (10 for all attributes)
+min_vals <- rep(0, ncol(radar_data) - 1)   # Set min values (0 for all attributes)
+radar_chart_data <- rbind(max_vals, min_vals, radar_data[,-1])
+
+# Plot the Radar Chart WITHOUT Fill Colors
+radarchart(radar_chart_data, axistype = 1,
+           pcol = country_colors[radar_data$Country],  # Colors for outlines
+           pfcol = NA,                                # Remove fill color
+           plwd = 2, plty = 1,
+           title = "Comparison of All 15 Countries Across Attributes")
+
+
+# Adjusted Legend Below to make the Plot clear 
+par(mar = c(5, 4, 4, 8), xpd = TRUE)  # Add extra space on the right side
+legend("topright", inset = c(-0.2, 0),   # Adjust position outside the plot
+       legend = radar_data$Country,      # Country names
+       col = country_colors[radar_data$Country],
+       lty = 1, lwd = 3, cex = 0.8,      # Adjust font size
+       ncol = 1,                         # Single column
+       title = "Countries")
+
+```
+
+|   **Interactive Plot: Different Shapes by Country, Color by Life Satisfaction** : This interactive scatter plot shows the relationship between Income and Civic Engagement, with shapes representing countries and colors indicating life satisfaction levels.
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Interactive scatter plot: Income vs Life Satisfaction
+
+# Custom color palette for countries
+custom_colors <- c(
+  "Canada" = "red", "Chile" = "orange", "Colombia" = "yellow", "France" = "blue", 
+  "Germany" = "green", "Greece" = "purple", "Italy" = "cyan", "Lithuania" = "chocolate3", "Mexico" = "pink", 
+  "Netherlands" = "navy", "New Zealand" = "darkgreen", "Poland" = "brown", 
+  "Spain" = "violet", "United Kingdom" = "coral", "United States" = "darkred"
+)
+
+
+# Plot 1: Circle Size by Life Satisfaction, Color by Country
+
+plot1 <- ggplot(df_wb, 
+                aes(x = `Income.(0-10)`, 
+                    y = `Civic.engagement.(0-10)`, 
+                    size = `Life.satisfaction.(0-10)`, 
+                    color = Country,  # Map color to Country
+                    text = paste("Region:", Region, 
+                                 "<br>Country:", Country, 
+                                 "<br>Life Satisfaction:", `Life.satisfaction.(0-10)`))) +
+  geom_point(alpha = 0.7) +  # Use only circles
+  ggtitle("Plot 1: Circle Size by Life Satisfaction, Color by Country") +
+  xlab("Income (0-10)") +
+  ylab("Civic Engagement (0-10)") +
+  theme_minimal() +
+  scale_size_continuous(range = c(3, 12), name = "Life Satisfaction") +  # Adjust circle sizes
+  scale_color_manual(values = custom_colors) +  # Custom country colors
+  guides(color = guide_legend(title = "Country"), 
+         size = guide_legend(title = "Life Satisfaction"))
+
+# Convert ggplot to interactive plot
+plot1_interactive <- ggplotly(plot1, tooltip = "text")
+
+
+# Plot 2: Different Shapes by Country, Color by Life Satisfaction
+
+plot2 <- ggplot(df_wb, 
+                aes(x = `Income.(0-10)`, 
+                    y = `Civic.engagement.(0-10)`, 
+                    color = `Life.satisfaction.(0-10)`,  # Color by Life Satisfaction
+                    shape = Country,                    # Shape by Country
+                    text = paste("Region:", Region, 
+                                 "<br>Country:", Country, 
+                                 "<br>Life Satisfaction:", `Life.satisfaction.(0-10)`))) +
+  geom_point(alpha = 0.7, size = 5) +  # Larger shapes for visibility
+  ggtitle("Plot 2: Different Shapes by Country, Color by Life Satisfaction") +
+  xlab("Income (0-10)") +
+  ylab("Civic Engagement (0-10)") +
+  theme_minimal() +
+  scale_shape_manual(values = 0:20) +  # Unique shapes for up to 20 countries
+  scale_color_gradient(low = "blue", high = "red") +  # Gradient color for Life Satisfaction
+  guides(shape = guide_legend(title = "Country"), 
+         color = guide_colorbar(title = "Life Satisfaction"))
+
+# Convert ggplot to interactive plot
+plot2_interactive <- ggplotly(plot2, tooltip = "text")
+
+
+# Display Both Plots
+
+plot1_interactive
+plot2_interactive
+```

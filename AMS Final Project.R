@@ -139,3 +139,4 @@ colnames(df_wb)[7] <- "N.rooms.per.person (0-10)"
 
 head(df_wb, 5)
 summary(df_wb)
+
