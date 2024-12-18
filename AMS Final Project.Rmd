@@ -49,6 +49,8 @@ df_wb <- read.xlsx("C:\\Users\\franc\\Documents\\GitHub\\ams_final_project\\Data
 dim(df_wb)
 ```
 
+\newpage
+
 |   The variables included are the following:
 
 1.	**Country:** Includes the name of all the countries included in the results.
@@ -216,10 +218,18 @@ dim(df_wb)
 summary(df_wb)
 ```
 
+\newpage
 
 ## EDA
 
-|   **Life Satisfaction by Country with Average Scores** : This box plot shows the distribution of life satisfaction scores across different countries, with their respective average scores annotated in red.
+|   After completing a rigorous data cleaning process to remove redundancies and address multicollinearity, we continued with an Exploratory Data Analysis (EDA) to obtain insights about the factors influencing life satisfaction across 15 countries.
+
+### Life Satisfaction Distribution Across Countries
+
+|   We began by analyzing how life satisfaction varies from one country to another. As illustrated in the box plot below, countries like the Netherlands, New Zealand, and Canada stood out with the highest average life satisfaction scores (9.36, 8.9, and 8.22, respectively). On the other hand, countries such as Greece, and Colombia reported the lowest scores.
+
+|   Interestingly, in countries like Mexico and Colombia, we observed wide variability, suggesting significant regional differences within these nations. This led us to our **first key insight**: life satisfaction is not equally distributed across countries, and economic or social disparities likely play a role.
+
 ```{r, echo=FALSE}
 #High-Level Distribution of Life Satisfaction
 
@@ -249,7 +259,19 @@ ggplot(df_wb, aes(x = reorder(Country, `Life.satisfaction.(0-10)`), y = `Life.sa
 
 ```
 
-|   **Correlation Heatmap of Metrics** :This heatmap reveals the correlation between various metrics in the dataset.
+### Understanding Relationships Between Metrics (Correlation Analysis)
+
+|   Deeper in our analysis, we explored the correlations between life satisfaction and other well-being metrics using a heatmap:
+
+1.    **Housing** had the strongest correlation with life satisfaction (0.70), showing that access to adequate housing and living conditions significantly influences well-being.
+
+2.    **Jobs** metric followed closely at 0.6, highlighting the importance of employment opportunities.
+
+3.    **Environemnt** and **Community** stood out with a correlation of 0.55 and 0.56 respectively, highlighting that a clean and sustainable environment and, connectedness and solidarity among groups in society are also an important part of life. 
+
+|   Surprisingly, **Income** showed a slightly lower correlation at 0.54, suggesting that while important, economic wealth is not the sole driver of life satisfaction.
+
+|   This analysis revealed that housing conditions, employment opportunities, environment and community are more influential for life satisfaction than income alone.
 
 ```{r, echo=FALSE}
 # Heatmap of correlations
@@ -274,7 +296,15 @@ ggcorrplot(cor_matrix,
 
 ```
 
-|   **Radar Chart for All 15 Countries** : This radar chart compares the average scores of 15 countries across multiple attributes such as Education, Jobs, Income, Housing, and Environment.
+\newpage
+
+### A Holistic Comparison of Countries (Radar Chart)
+
+|   To compare the overall performance of all 15 countries, we created a radar chart that visualizes average scores across various attributes such as Environment, Jobs, Housing, and Education. Countries like the Netherlands and New Zealand demonstrated balance across multiple dimensions, outstanding in areas such as Education, Jobs, and Environment.
+
+|   Conversely, countries like Greece struggled across several metrics, particularly in Income, Health, and Safety, which correlates with their lower life satisfaction scores.
+So from this visualization we can highlight some critical insight:
+Top-performing countries achieve balance across economic, environmental, and social dimensions, while lower-performing countries face challenges in multiple areas.
 
 ```{r, echo=FALSE}
 #Radar Chart for Top Countries
@@ -301,32 +331,46 @@ radar_data <- all_data %>%
 country_colors <- distinctColorPalette(nrow(radar_data)) # Generate unique colors dynamically
 names(country_colors) <- radar_data$Country # Assign country names to colors
 
+# Clean column names to remove "(0-10)"
+radar_data_clean <- radar_data %>%
+  rename_with(~ str_replace(., "\\(0-10\\)", ""))
+
 # getting the  Radar Chart Data ready 
-max_vals <- rep(10, ncol(radar_data) - 1)  # Set max values (10 for all attributes)
-min_vals <- rep(0, ncol(radar_data) - 1)   # Set min values (0 for all attributes)
-radar_chart_data <- rbind(max_vals, min_vals, radar_data[,-1])
+max_vals <- rep(10, ncol(radar_data_clean) - 1)  # Set max values (10 for all attributes)
+min_vals <- rep(0, ncol(radar_data_clean) - 1)   # Set min values (0 for all attributes)
+radar_chart_data <- rbind(max_vals, min_vals, radar_data_clean[,-1])
+
+# Adjust figure layout
+par(mar = c(8, 4, 4, 2), xpd = TRUE, cex = 0.7) 
 
 # Plot the Radar Chart WITHOUT Fill Colors
+par(mar = c(8, 4, 4, 2), xpd = TRUE, cex = 0.8) 
+
 radarchart(radar_chart_data, axistype = 1,
-           pcol = country_colors[radar_data$Country],  # Colors for outlines
+           pcol = country_colors[radar_data_clean$Country],  # Colors for outlines
            pfcol = NA,                                # Remove fill color
            plwd = 2, plty = 1,
            title = "Comparison of All 15 Countries Across Attributes")
 
 
 # Adjusted Legend Below to make the Plot clear 
-par(mar = c(5, 4, 4, 8), xpd = TRUE)  # Add extra space on the right side
-legend("topright", inset = c(-0.2, 0),   # Adjust position outside the plot
-       legend = radar_data$Country,      # Country names
-       col = country_colors[radar_data$Country],
-       lty = 1, lwd = 3, cex = 0.8,      # Adjust font size
-       ncol = 1,                         # Single column
-       title = "Countries")
+legend("bottom", inset = c(0, -0.4), 
+       legend = radar_data_clean$Country,
+       col = country_colors[radar_data_clean$Country],
+       lty = 1, lwd = 3, cex = 0.7,
+       ncol = 3, title = "Countries")
 
 ```
 
-|   **Interactive Plot: Different Shapes by Country, Color by Life Satisfaction** : This interactive scatter plot shows the relationship between Income and Civic Engagement, with shapes representing countries and colors indicating life satisfaction levels.
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+\newpage
+
+### Visualizing Patterns Through Interactive Scatter Plots
+
+|   Finally, we created two interactive plots to explore the relationships between Income, Civic Engagement, and Life Satisfaction:
+
+1.    **Plot 1: Circle Size by Life Satisfaction, Color by Country:** This plot revealed that countries with larger circles (higher life satisfaction) tend to have higher income and civic engagement levels. For instance, the Netherlands and the United States dominate the upper-right region of the plot. Conversely, smaller circles in the lower-left region highlight countries like Greece, where income and civic engagement remain low.
+
+```{r, echo=FALSE, fig.align='center', out.width='100%', warning=FALSE, message=FALSE}
 # Interactive scatter plot: Income vs Life Satisfaction
 
 # Custom color palette for countries
@@ -356,10 +400,33 @@ plot1 <- ggplot(df_wb,
   scale_size_continuous(range = c(3, 12), name = "Life Satisfaction") +  # Adjust circle sizes
   scale_color_manual(values = custom_colors) +  # Custom country colors
   guides(color = guide_legend(title = "Country"), 
-         size = guide_legend(title = "Life Satisfaction"))
+         size = guide_legend(title = "Life Satisfaction")) +
+  theme(
+    legend.position = "bottom",       # Move legend below the plot
+    legend.box = "horizontal",        # Arrange legend items horizontally
+    plot.margin = margin(10, 10, 30, 10), # Add extra margin at the bottom
+    legend.text = element_text(size = 5), # Adjust legend text size
+    legend.title = element_text(size = 5) # Adjust legend title size
+  )
 
-# Convert ggplot to interactive plot
-plot1_interactive <- ggplotly(plot1, tooltip = "text")
+# Display Both Plots
+plot1
+```
+
+\newpage
+
+2.    **Plot 2: Different Shapes by Country, Color by Life Satisfaction:** Here, each country is represented with a unique shape, and colors reflect their life satisfaction. Countries with higher satisfaction are visibly clustered in red, whereas lower-satisfaction countries are more dispersed, particularly toward the lower income range. These visualizations allowed us to see the clear relationships between income, civic engagement, and well-being, while also identifying disparities and regional patterns.
+
+```{r, echo=FALSE, fig.align='center', out.width='100%', warning=FALSE, message=FALSE}
+# Interactive scatter plot: Income vs Life Satisfaction
+
+# Custom color palette for countries
+custom_colors <- c(
+  "Canada" = "red", "Chile" = "orange", "Colombia" = "yellow", "France" = "blue", 
+  "Germany" = "green", "Greece" = "purple", "Italy" = "cyan", "Lithuania" = "chocolate3", "Mexico" = "pink", 
+  "Netherlands" = "navy", "New Zealand" = "darkgreen", "Poland" = "brown", 
+  "Spain" = "violet", "United Kingdom" = "coral", "United States" = "darkred"
+)
 
 
 # Plot 2: Different Shapes by Country, Color by Life Satisfaction
@@ -380,14 +447,15 @@ plot2 <- ggplot(df_wb,
   scale_shape_manual(values = 0:20) +  # Unique shapes for up to 20 countries
   scale_color_gradient(low = "blue", high = "red") +  # Gradient color for Life Satisfaction
   guides(shape = guide_legend(title = "Country"), 
-         color = guide_colorbar(title = "Life Satisfaction"))
+         color = guide_colorbar(title = "Life Satisfaction")) +
+  theme(
+    legend.position = "bottom",       # Move legend below the plot
+    legend.box = "horizontal",        # Arrange legend items horizontally
+    plot.margin = margin(10, 10, 30, 10), # Add extra margin at the bottom
+    legend.text = element_text(size = 5), # Adjust legend text size
+    legend.title = element_text(size = 5) # Adjust legend title size
+  )
 
-# Convert ggplot to interactive plot
-plot2_interactive <- ggplotly(plot2, tooltip = "text")
-
-
-# Display Both Plots
-
-plot1_interactive
-plot2_interactive
+# Display Plot
+plot2
 ```
