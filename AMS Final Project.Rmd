@@ -10,18 +10,26 @@ output: pdf_document
 library(openxlsx) # to read and write Excel files (.xlsx) in R
 library(tidyr) # data format conversion, tidying and transforming data
 library(tidyverse) # Whole package of libraries (dplyr, tidyr, ggplot2, readr, purrr, tibble, stringr, forcats)
+library(dplyr)
 
 library(ggplot2) # for plotting
 library(reshape2) # for reshaping and transforming data
 library(fpp3) # used for forecasting in R
 library(GGally) # functionality of ggplot2 as it provides additional geoms and functions for data visualization
 library(ggcorrplot) # used for the heatmap correlation matrix
+library(corrplot) # used for the heatmap correlation matrix
 library(fmsb) # used for creating radar charts
 library(plotly) # used for the interactive plot
 library(randomcoloR) # used for generating colors
+library(RColorBrewer) # used for generating colors
+library(pheatmap) # for heatmap
+library(mclust)
+library(readr)
 
 library(lme4) # for linear mixed effects modeling + functions for fitting and analyzing linear mixed effects models
 library(insight) # functions for model-agnostic interpretation and visualization of regression models
+library(MuMIn)
+library(lattice)
 ```
 
 # Abstract
@@ -82,10 +90,10 @@ dim(df_wb)
 27. **Community (0-10):** Score for social cohesion.
 28. **Life satisfaction (0-10):** Overall happiness score.
 
-|   The value type of each attribute are the following:
+|   The value type of each attribute appeared to be character, so further data pre-processing and data manipulation will be done.
 
-```{r, echo=FALSE}
-sapply(df_wb, class)
+```{r, echo=FALSE, results = 'hide'}
+str(df_wb)
 ```
 
 # Data Manipulation and EDA
@@ -96,6 +104,7 @@ sapply(df_wb, class)
 
 |   First we checked the **null values** to determine their significance and understand which is the best action to take regaridng this matter. After checking that there were no null values, but yet we couldn't perform some calculations on the attributes, we did a more detailed analysis to realize that there were null values which were replaced by the **character ".."**.
 
+\newpage
 ```{r, echo=FALSE}
 wb_missing_values <- sapply(df_wb, function(col) sum(col == "..")/nrow(df_wb)*100)
 as.data.frame(wb_missing_values)
@@ -136,9 +145,9 @@ missing_by_country
 
 |   Moreover, for those cases with some null values, we decided to replace them with the **median of the country**. We decided this because the data is divided by city, so we could use the median of the rest cities of the country for those cities with null values. Furthermore, the median is a better option than the mean as we can avoid the influence of any possible outlier.
 
-|   Finally, after all this data manipulation, we can see that now the data type of each attribute is correct.
+|   Finally, after all this data manipulation, we have the correct data type for each attribute.
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, results = 'hide'}
 df_wb <- df_wb[!(df_wb$Country == "Costa Rica" | df_wb$Country == "Iceland" | df_wb$Country == "Japan" | df_wb$Country == "Türkiye"), ]
 
 df_wb <- df_wb %>% 
@@ -200,7 +209,7 @@ df_wb <- df_wb[, c(1:3, 18:ncol(df_wb))]
 ```{r, echo=FALSE}
 df_wb <- df_wb %>%
   group_by(Country) %>%                        # Agrupar por país
-  filter(n_distinct(Region) >= 10) %>%      # Contar ciudades únicas y filtrar
+  filter(n_distinct(Region) > 10) %>%      # Contar ciudades únicas y filtrar
   ungroup() 
 ```
 
@@ -220,7 +229,7 @@ summary(df_wb)
 
 \newpage
 
-## EDA
+## Exploratory Data Analysis
 
 |   After completing a rigorous data cleaning process to remove redundancies and address multicollinearity, we continued with an Exploratory Data Analysis (EDA) to obtain insights about the factors influencing life satisfaction across 15 countries.
 
@@ -263,11 +272,14 @@ ggplot(df_wb, aes(x = reorder(Country, `Life.satisfaction.(0-10)`), y = `Life.sa
 
 |   Deeper in our analysis, we explored the correlations between life satisfaction and other well-being metrics using a heatmap:
 
-1.    **Housing** had the strongest correlation with life satisfaction (0.70), showing that access to adequate housing and living conditions significantly influences well-being.
+1.    **Housing** had the strongest correlation with life satisfaction (0.69), showing that access to adequate
+housing and living conditions significantly influences well-being.
 
 2.    **Jobs** metric followed closely at 0.6, highlighting the importance of employment opportunities.
 
-3.    **Environemnt** and **Community** stood out with a correlation of 0.55 and 0.56 respectively, highlighting that a clean and sustainable environment and, connectedness and solidarity among groups in society are also an important part of life. 
+3.    **Environemnt** and **Community** stood out with a correlation of 0.56 both, highlighting
+that a clean and sustainable environment and, connectedness and solidarity among groups in society
+are also an important part of life. 
 
 |   Surprisingly, **Income** showed a slightly lower correlation at 0.54, suggesting that while important, economic wealth is not the sole driver of life satisfaction.
 
@@ -284,15 +296,14 @@ cor_matrix <- cor(numeric_data, use = "complete.obs")
 
 
 
-ggcorrplot(cor_matrix, 
-           method = "square",       # Use square tiles for the heatmap
-           type = "upper",          # Show only the upper triangle
-           lab = TRUE,              # Display correlation values
-           lab_size = 3,            # Size of the labels
-           title = "Correlation Heatmap of Metrics", 
-           colors = c("blue", "white", "red"))  # Custom color scale
-
-
+# Customize the heatmap with better formatting
+corrplot(cor_matrix, 
+         method = "color",       # Use color gradient
+         type = "upper",         # Show upper triangle
+         addCoef.col = "black",  # Add correlation coefficients in black
+         tl.col = "black",       # Text labels color
+         tl.cex = 0.59,           # Text labels size
+         number.cex = 0.59)       # Coefficient size)
 
 ```
 
@@ -300,73 +311,62 @@ ggcorrplot(cor_matrix,
 
 ### A Holistic Comparison of Countries (Radar Chart)
 
-|   To compare the overall performance of all 15 countries, we created a radar chart that visualizes average scores across various attributes such as Environment, Jobs, Housing, and Education. Countries like the Netherlands and New Zealand demonstrated balance across multiple dimensions, outstanding in areas such as Education, Jobs, and Environment.
+|   The radar chart highlights the Top 3 countries (Netherlands, Canada, and New Zealand) and the Bottom 3 countries (Poland, Greece, and Colombia) based on key life attributes. Netherlands leads in Jobs, Civic Engagement, and Accessibility to Services, achieving the highest Life Satisfaction. Canada excels in Housing, Environment, and Income, demonstrating a strong economic and living standard. New Zealand stands out with the best Community scores, fostering a strong sense of belonging.
 
-|   Conversely, countries like Greece struggled across several metrics, particularly in Income, Health, and Safety, which correlates with their lower life satisfaction scores.
-So from this visualization we can highlight some critical insight:
-Top-performing countries achieve balance across economic, environmental, and social dimensions, while lower-performing countries face challenges in multiple areas.
+|   Among the lowest countries, Poland performs well in Education but struggles with Environment and Housing. Colombia, despite having a better Environment than expected, lags in Housing, Accessibility to Services, and especially Safety, making it the least secure. This highlights how gaps in infrastructure, safety, and education can lead to lower life satisfaction across these countries.
 
-```{r, echo=FALSE}
-#Radar Chart for Top Countries
-
-# Calculate average life satisfaction per country
+```{r, echo=FALSE, fig.width=8, fig.height=6, dpi=300, out.width="100%"}
+# Calculate average life satisfaction and filter Top 3 & Bottom 3 countries
 country_ranking <- df_wb %>%
   group_by(Country) %>%
   summarise(Average_Life_Satisfaction = mean(`Life.satisfaction.(0-10)`, na.rm = TRUE)) %>%
   arrange(desc(Average_Life_Satisfaction))
 
-# Selecting all countries (Top 15)
-all_countries <- country_ranking$Country
-all_data <- df_wb %>% filter(Country %in% all_countries)
+selected_countries <- c(
+  head(country_ranking$Country, 3),  # Top 3 countries
+  tail(country_ranking$Country, 3)   # Bottom 3 countries
+)
 
-# Aggregating mean attributes for each country
-radar_data <- all_data %>%
+# Aggregate radar chart data for the selected countries
+radar_data <- df_wb %>%
+  filter(Country %in% selected_countries) %>%
   group_by(Country) %>%
   summarise_at(vars(`Education.(0-10)`, `Jobs.(0-10)`, `Income.(0-10)`, `Safety.(0-10)`,
                     `Health.(0-10)`, `Environment.(0-10)`, `Civic.engagement.(0-10)`,
                     `Accessiblity.to.services.(0-10)`, `Housing.(0-10)`, `Community.(0-10)`, 
                     `Life.satisfaction.(0-10)`), mean, na.rm = TRUE)
 
-# Define Colors Dynamically for All Countries
-country_colors <- distinctColorPalette(nrow(radar_data)) # Generate unique colors dynamically
-names(country_colors) <- radar_data$Country # Assign country names to colors
+# Prepare radar chart data
+max_vals <- rep(10, ncol(radar_data) - 1)  # Max scaling
+min_vals <- rep(0, ncol(radar_data) - 1)   # Min scaling
+radar_chart_data <- rbind(max_vals, min_vals, radar_data[,-1])
 
-# Clean column names to remove "(0-10)"
-radar_data_clean <- radar_data %>%
-  rename_with(~ str_replace(., "\\(0-10\\)", ""))
+# Define vibrant colors for Top and Bottom countries
+country_colors <- c("red", "blue", "green", "purple", "orange", "darkred")  # Custom strong colors
+names(country_colors) <- radar_data$Country
 
-# getting the  Radar Chart Data ready 
-max_vals <- rep(10, ncol(radar_data_clean) - 1)  # Set max values (10 for all attributes)
-min_vals <- rep(0, ncol(radar_data_clean) - 1)   # Set min values (0 for all attributes)
-radar_chart_data <- rbind(max_vals, min_vals, radar_data_clean[,-1])
 
-# Adjust figure layout
-par(mar = c(8, 4, 4, 2), xpd = TRUE, cex = 0.7) 
 
-# Plot the Radar Chart WITHOUT Fill Colors
-par(mar = c(8, 4, 4, 2), xpd = TRUE, cex = 0.8) 
+par(mar = c(2, 2, 2, 2), xpd = TRUE)
 
 radarchart(radar_chart_data, axistype = 1,
-           pcol = country_colors[radar_data_clean$Country],  # Colors for outlines
-           pfcol = NA,                                # Remove fill color
-           plwd = 2, plty = 1,
-           title = "Comparison of All 15 Countries Across Attributes")
+           pcol = country_colors[radar_data$Country],
+           pfcol = scales::alpha(country_colors[radar_data$Country], 0.2),
+           plwd = 3, plty = 1,
+           cglcol = "grey", cglty = 1, cglwd = 0.8, vlcex = 0.7,
+           title = "Top 3 and Bottom 3 Countries - Radar Chart")
 
-
-# Adjusted Legend Below to make the Plot clear 
-legend("bottom", inset = c(0, -0.4), 
-       legend = radar_data_clean$Country,
-       col = country_colors[radar_data_clean$Country],
-       lty = 1, lwd = 3, cex = 0.7,
-       ncol = 3, title = "Countries")
+legend("bottomleft", legend = radar_data$Country,
+       col = country_colors[radar_data$Country], lty = 1, lwd = 3, cex = 0.8, 
+       title = "Countries", bg = "white", box.lwd = 0)
 
 ```
 
 \newpage
 
-### Visualizing Patterns Through Interactive Scatter Plots
+### Visualizing Patterns Through Scatter Plots
 
-|   Finally, we created two interactive plots to explore the relationships between Income, Civic Engagement, and Life Satisfaction:
+|   Finally, we created two plots to explore the relationships between Income, Civic Engagement, and Life Satisfaction:
 
 1.    **Plot 1: Circle Size by Life Satisfaction, Color by Country:** This plot revealed that countries with larger circles (higher life satisfaction) tend to have higher income and civic engagement levels. For instance, the Netherlands and the United States dominate the upper-right region of the plot. Conversely, smaller circles in the lower-left region highlight countries like Greece, where income and civic engagement remain low.
 
@@ -458,4 +458,937 @@ plot2 <- ggplot(df_wb,
 
 # Display Plot
 plot2
+```
+
+\newpage
+
+# Clustering
+
+```{r, echo=FALSE, warning=FALSE}
+# Selecting only the Numeric Columns (predictor columns) to scale the data
+df_mod <- df_wb %>% select(-Country, -Region, -Code, -`Life.satisfaction.(0-10)`)
+
+# Scaling the dataframe
+df_mod <- scale(df_mod) # But gives a matrix as output
+
+# Converting back to dataframe
+df_mod <- as.data.frame(df_mod)
+
+```
+
+## Performing the Model Based Clustering.
+
+|   For this model, we used **Mclust (Model Based Clustering)**, which employs **Gaussian Mixture Models (GMM)** to perform the clustering. It automatically selects the optimal number of clusters and model type based on criteria such as the **Bayesian Information Criterion (BIC)**. This approach ensures both accuracy and interpretability in clustering. The summary shows that the _**optimal number of clusters is 4**_ **(Appendix A)**. 
+
+|   Once we got the 4 clusters, we created a Classification and Uncertainty plots for the different clusters:
+
+### BIC and Number of Components Used for Clustering
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
+
+# Reference 1 - https://mclust-org.github.io/mclust/reference/plot.Mclust.html
+# Reference 2 - https://mclust-org.github.io/mclust-book/chapters/03_cluster.html#:~:text=Model-based%20clustering%20%28MBC%29%20is%20a%20probabilistic%20approach%20to,described%20by%20a%20probability%20distribution%20with%20unknown%20parameters.
+
+# Selecting 5 clusters and choosing an Optimal Cluster out of all the possible combinations 
+wb_optimal_cst <- Mclust(df_mod, G=1:5) # setting the number of optimal clusters to be chosen from 1 to 5.
+
+# Legend position (for styling)
+legend_args <- list(x = "bottomright", ncol = 5)
+
+# Plotting BIC to assess model fit
+plot(wb_optimal_cst, what = 'BIC', legendArgs = legend_args)
+```
+
+|   By evaluating the fit of models with different numbers of clusters and covariance structures, the BIC plot confirmed that the **VEV model with four components** was the most appropriate. This indicated a good balance between model complexity and interpretability. This result reassures us that the identified clusters capture meaningful differences in well-being metrics while avoiding overfitting.
+
+### Classification of Data Points
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
+# Plotting classification of data points
+plot(wb_optimal_cst, what = 'classification', fillEllipses = TRUE)
+```
+
+|   The classification plot of data points across clusters visualized the **assignment of regions to the four clusters based on their scores in the different attributes**. The plot highlighted distinct separations between clusters, emphasizing the significant variations in regional well-being. We can see some clear separation between clusters as for example in Education, Income and Safety, among others. This visualization effectively communicated how regions with similar well-being conditions are grouped together, providing a clear understanding of how specific attributes define life satisfaction levels.
+
+### Uncertainty
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
+# Plotting the uncertainty 
+plot(wb_optimal_cst, what = 'uncertainty')
+```
+
+|   Furthermore, the uncertainty plot offered an additional layer of insight by visualizing the **degree of confidence in assigning data points to their respective clusters**. Most regions exhibited low uncertainty, indicating that the GMM model reliably classified regions into distinct clusters. However, a few regions displayed higher uncertainty, suggesting they share characteristics with multiple clusters.
+
+### Density Distribution of Data Within Clusters
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
+# Plot density distribution of the data within clusters
+plot(wb_optimal_cst, what = 'density', legendArgs = legend_args)
+```
+
+|   Last but not least, the density distribution plot for data within clusters provide an in-depth look at how key well-being attributes are distributed across the identified clusters. These plots enable a better understanding of the internal variability and the distinctiveness of each cluster. For example, metrics such as **education, income, and safety exhibit unique distributions within clusters**, highlighting the degree of homogeneity or disparity among regions in each grouping.
+
+\newpage
+
+|   After this, we applied Principal Component Analysis (PCA) to _**reduce the dataset's dimensionality**_. This allowed us to plot the identified clusters in a two-dimensional space, providing a clear and intuitive representation of their separation and structure.
+
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
+# Plotting the Four clusters using PC Components for better visualization.
+# Performing PCA using prcomp
+pca <- prcomp(df_mod, scale. = TRUE)
+
+# first two principal components
+pca_data <- data.frame(pca$x[, 1:2])
+
+# Using the cluster assignments from Mclust
+pca_data$Cluster <- factor(wb_optimal_cst$classification)
+
+# Plotting the MClust clusters on PCA plot
+ggplot(pca_data, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(alpha = 0.9, size = 2) +
+  theme_minimal() +
+  labs(title = "PCA with the 4 Clusters from MClust", x = "Principal Component 1", y = "Principal Component 2") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d"))+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+|   Furthermore, we employed t-SNE (t-Distributed Stochastic Neighbor Embedding) for a better visualization. This technique maps high-dimensional data into a lower-dimensional space while preserving the local structure (cluster), offering an alternative perspective on the clustering results.
+
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
+library(Rtsne)
+set.seed(218)
+# Performing t-SNE
+tsne <- Rtsne(df_mod, dims = 2)
+
+# t-SNE coordinates
+tsne_data <- data.frame(tsne$Y)
+
+# Cluster assignments from Mclust
+tsne_data$Cluster <- factor(wb_optimal_cst$classification)
+
+# Plotting t-SNE with MClust clusters
+ggplot(tsne_data, aes(x = X1, y = X2, color = Cluster)) +
+  geom_point(alpha = 0.9, size = 2) +
+  theme_minimal() +
+  labs(title = "t-SNE with the 4 Clusters from MClust", x = "t-SNE Dimension 1", y = "t-SNE Dimension 2") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+## Analysis of Clusters
+
+|   After obtaining the 4 clusters, we added the assigned clusters to the original dataframe. We then calculated the means for each cluster to better understand the characteristics of the data points within each group. This step helps identify patterns and differences between the clusters.
+
+```{r, echo=FALSE, warning=FALSE}
+# Adding the cluster assignments to the original dataset
+df_mod$Cluster <- factor(wb_optimal_cst$classification)
+
+# Calculating  mean of each feature for every cluster and storing in dataframe cluster_means
+cluster_means <- df_mod %>%
+  group_by(Cluster) %>%
+  summarise(across(everything(), mean))
+
+# Viewing the cluster profiles
+print(cluster_means)
+
+```
+
+
+|   We used a bar plot to show the contribution of each feature in every cluster, with base reference to the average (mean) value of the feature. We can mainly see that for cluster 1, all the features have a positive value, more than the average value for all parameters.
+
+```{r, echo=FALSE, warning=FALSE}
+# Convert the cluster_means to a long format for easy plotting
+cluster_means_long <- cluster_means %>%
+  pivot_longer(cols = -Cluster, names_to = "Feature", values_to = "Mean_Value")
+
+# Creating the bar plot for each feature by cluster
+ggplot(cluster_means_long, aes(x = Feature, y = Mean_Value, fill = Cluster)) +
+  geom_bar(stat = "identity", position = "dodge", alpha=0.9,color = "black", linewidth = 0.1) +
+  labs(title = "Average Feature Values by Cluster", 
+       x = "Feature", 
+       y = "Average Value") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 1, hjust = 1)) +  # Rotate x-axis labels
+  scale_fill_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Cluster colors
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+|   From this table we can clearly conclude that the data highlights a clear disparity in well-being across the clusters.:
+*   **Cluster 1** performs relatively well in safety (0.606).
+*   **Clsuter 2** shows mixed results, including negative scores in jobs (-0.362) and income (-0.331).
+*   **Cluster 3** exhibits significantly lower scores across all attributes, with particularly negative values in safety (-1.52) and income (-1.14).
+*   **Cluster 4** consistently shows the highest scores in most attributes, such as income (1.73) and jobs (0.682).
+
+|   Moreover, we generated a scatter plot of **Income vs Civic Engagement** for the four clusters, highlighting the distribution of each cluster based on these two variables.
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Calculating the centroids of clusters (average value of Income and Civic Engagement for each cluster)
+
+centroids <- df_mod %>%
+  group_by(Cluster) %>%
+  summarise(Income_mean = mean(`Income.(0-10)`),
+            Civic_mean = mean(`Civic.engagement.(0-10)`))
+
+# Plotting the scatter plot with centroids
+ggplot(df_mod, aes(x = `Income.(0-10)`, y = `Civic.engagement.(0-10)`, color = as.factor(wb_optimal_cst$classification))) +
+  geom_point(alpha = 0.9, size = 2) +
+  geom_point(data = centroids, aes(x = Income_mean, y = Civic_mean), 
+             color = "grey1", size = 4, shape = 8, stroke = 2) +  # Centroids as large black stars
+  labs(title = "Income vs Civic Engagement (Scaled) by Cluster with Centroids", 
+       x = "Income", y = "Civic Engagement", 
+       color = "Cluster") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+
+|   We also created a heatmap displaying the average values of factors in each cluster, with the data scaled to a baseline of 0. This plot is presented alongside the average plot to provide a clear comparison of the cluster characteristics.
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Calculate the mean of each feature by cluster
+cluster_means <- df_mod %>%
+  group_by(Cluster) %>%
+  summarise(across(starts_with("Education"):starts_with("Community"), mean))
+
+# Plot heatmap
+pheatmap(as.matrix(cluster_means[, -1]), 
+         cluster_rows = TRUE, cluster_cols = TRUE,
+         main = "Cluster Profiles Heatmap",
+         scale = "row",  # Scale variables by row (features)
+         display_numbers = TRUE)
+
+```
+
+
+|   Later on, we went into more detail by plotting the **average Life Satisfaction Score** in each cluster.
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Adding the predicted clusters to the original dataset
+df_wb$Cluster <- wb_optimal_cst$classification
+
+# Calculating the mean Life Satisfaction score for each cluster
+life_satisfaction_avg <- df_wb %>%
+  group_by(Cluster) %>%
+  summarise(Average_Life_Satisfaction = mean(`Life.satisfaction.(0-10)`))
+
+# View the results
+print(life_satisfaction_avg)
+
+# Visualizing using a bar plot of average Life Satisfaction by cluster
+ggplot(life_satisfaction_avg, aes(x = as.factor(Cluster), y = Average_Life_Satisfaction, fill = as.factor(Cluster))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = round(Average_Life_Satisfaction, 2)),  # Adding labels (rounded to 2 decimal places)
+            vjust = -0.5,  # Adjust position of text above the bar
+            color = "black") +  # Color of the text
+  labs(title = "Average Life Satisfaction by Cluster", x = "Cluster", y = "Average Life Satisfaction (0-10)") +
+  scale_fill_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Adjust colors for clusters
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+|   Finally, we created a histogram and a density plot for the four clusters to explore how **Life Satisfaction** behaves and its distribution within each cluster.
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Creating histogram and highlighting the points by 4 cluster
+ggplot(df_wb, aes(x = `Life.satisfaction.(0-10)`, fill = as.factor(Cluster))) +
+  geom_histogram(bins = 30, color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Life Satisfaction by Cluster", 
+       x = "Life Satisfaction (0-10)", 
+       y = "Frequency") +
+  scale_fill_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Adjust colors for clusters
+  theme_minimal()
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Create a density plot and highlight the clusters
+ggplot(df_wb, aes(x = `Life.satisfaction.(0-10)`, color = as.factor(Cluster))) +
+  geom_density(size = 1.5) +  # Adjust the line thickness
+  labs(title = "Density Plot of Life Satisfaction by Cluster", 
+       x = "Life Satisfaction (0-10)", 
+       y = "Density") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Adjust colors for clusters
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+
+## K-Means
+
+|   Continuing with our clustering analysis, we decided to do a K-Means clustering to cross check.
+
+```{r, echo=FALSE, warning=FALSE}
+# Creating a new dataframe for K-Means
+df_mod_k <- df_mod %>% select(-Cluster)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+# K-means clustering for 10 different values of k=1 to k=10.
+set.seed(123)  # Seed for reproducibility
+kmeans_results <- list()
+for (k in 1:10) {
+  kmeans_results[[k]] <- kmeans(df_mod_k, centers = k, nstart = 100)
+}
+```
+
+|   When analysing the number of k clusters, we used the **Elbow Method**, and we concluded that there is a kink at k=2, but we move ahead to choose up to 4 clusters, after which the within-cluster sum of squares starts to fade off.
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Plotting the total within-cluster sum of squares for different k values
+wss <- sapply(kmeans_results, function(x) x$tot.withinss)
+plot(1:10, wss, type = "b", pch = 19, xlab = "Number of Clusters", 
+     ylab = "Total Within-Cluster Sum of Squares", main = "Elbow Method for K-means")
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+# Running K-means, k=4
+kmeans_final <- kmeans(df_mod_k, centers = 4, nstart = 100)
+
+# Adding K-means cluster assignment to the dataframe
+df_mod_k$Cluster_Kmeans <- as.factor(kmeans_final$cluster)
+
+# Overview of the cluster assignments in 5 clusters
+cat("Count of Cities in Each Cluster from K-Means\n")
+table(df_mod_k$Cluster_Kmeans)
+
+
+```
+
+
+## Comparing K-Means vs MCLUSt
+
+|   First, we did a **contingency table** to quickly compare both models:
+
+```{r, echo=FALSE, warning=FALSE}
+# Clusters from both the Models
+df_mod_k$Cluster_Mclust <- factor(wb_optimal_cst$classification) # Mclust
+df_mod_k$Cluster_Kmeans <- as.factor(kmeans_final$cluster) # K-Means
+
+# Contingency table comparing Mclust and K-means cluster assignments
+cluster_comparison <- table(df_mod_k$Cluster_Mclust, df_mod_k$Cluster_Kmeans)
+
+cluster_comparison_r_c_sum <- addmargins(cluster_comparison)
+
+# Printing the comparison
+cat("\nContingency Table: Mclust and K-means Clusters Comparison\n")
+cat("\nRows: Mclust Clusters\nColumns: K-means Clusters\n")
+print(cluster_comparison_r_c_sum)
+```
+
+|   Additionally, we created a scatter plot for comparing the clusters of both models.
+
+```{r, echo=FALSE, warning=FALSE,}
+# Scatter plot comparing K-means and Mclust clustering results
+ggplot(df_mod_k, aes(x = Cluster_Mclust, y = Cluster_Kmeans, color = Cluster_Mclust)) +
+  geom_jitter(alpha = 0.9, size=2) +
+  labs(title = "Comparison of Mclust and K-means Clustering",
+       x = "Mclust Clusters", y = "K-means Clusters") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+|   Moreover, This plot shows how the different cities of the countries are segregated/distributed in the 5 clusters.
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Adding the Country Column to df_mod
+df_mod$Country <- df_wb$Country
+
+# Summary table with count of the number of entries for each country in each cluster
+country_cluster_distribution <- df_mod %>%
+  group_by(Cluster, Country) %>%
+  summarise(Count = n(), .groups = 'drop')
+
+# Cluster-Wise Distribution of Countries
+
+custom_palette_15 <- c("#004949","#009292", "#490092","#006ddb","#b66dff","#F6D854", "#E41A1C", "#4DAF4A", "#A65628", "#f1cbcc",
+                       "#999999", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854")
+
+ggplot(country_cluster_distribution, aes(x = Cluster, y = Count, fill = Country)) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(aes(label = Count), position = position_stack(vjust = 0.5), color = "white") +  # Counts Inside the Horizontal Strips
+  coord_flip() +  # Flipping Axes For horizontal bars
+  labs(title = "Cluster-wise Distribution of Countries", 
+       x = "Cluster", y = "Count of Cities from Each Country") +
+  scale_fill_manual(values = custom_palette_15) +  # Using the custom color palette
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+|   The **Rand Index Comparison** is:
+
+```{r, echo=FALSE, warning=FALSE}
+
+adjustedRandIndex(wb_optimal_cst$classification, kmeans_final$cluster)
+
+```
+
+|   This demonstrates a strong agreement between the two clustering solutions, with a notable overlap of the clusters identified by both techniques.
+
+## Further Analysis for Clustering
+
+|   After all the analysis done, we decided to further analyse **Life Satisfaction**, so we manually divided it in 4 clusters. We divided the range 0-10 into 4 groups:
+
+1.  **0-2.5**
+2.  **2.5-5**
+3.  **5-7.5**
+4.  **7.5-10**
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Creating 4 clusters based on Life Satisfaction scores
+df_wb$LifeSatisfactionCluster <- cut(df_wb$`Life.satisfaction.(0-10)`, 
+                                  breaks = c(0, 2.5, 5, 7.5, 10), 
+                                  labels = c("0-2.5", "2.5-5", "5-7.5", "7.5-10"), 
+                                  include.lowest = TRUE)
+
+# Checking the new column
+table(df_wb$LifeSatisfactionCluster)
+
+```
+
+|   We compared this **manual clustering** vs **the M-Clust model** and the **K-Mean model**.
+
+## Manual clustering vs M-Clust model
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Creating contingency table
+mclust_clusters <- wb_optimal_cst$classification  # wb_optimal_cst contains Mclust clusters
+contingency_table_mclust <- table(df_wb$LifeSatisfactionCluster, mclust_clusters)
+
+# Viewing the table
+print(contingency_table_mclust)
+
+```
+
+|   For complementing this table, we used a heatmap to compare both ways of clustering:
+
+```{r, echo=FALSE, warning=FALSE}
+# Melt the contingency table for plotting
+melted_table <- melt(contingency_table_mclust)
+
+# Rename the columns for clarity
+colnames(melted_table) <- c("LifeSatisfactionCluster", "MclustCluster", "value")
+
+# Heat Map
+ggplot(data = melted_table, aes(x = MclustCluster, y = LifeSatisfactionCluster, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "lightblue3") +
+  labs(title = "Heatmap of Life Satisfaction vs Mclust Clusters", 
+       x = "Mclust Clusters", 
+       y = "Life Satisfaction Clusters") + 
+  theme_minimal()+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+|   Additionally, we used a PCA visualization for further comparison between these two clustering methods.
+
+```{r, echo=FALSE, warning=FALSE}
+# Perform PCA on df_mod (standardized data)
+pca_res <- prcomp(df_mod[, -c(11, 12)], scale. = TRUE)
+
+# Add cluster labels to PCA results
+pca_data <- data.frame(pca_res$x, 
+                       LifeSatisfactionCluster = as.factor(df_wb$LifeSatisfactionCluster), 
+                       MclustCluster = as.factor(mclust_clusters))
+
+# PCA Plot with Manual Colors for LifeSatisfactionCluster
+ggplot(pca_data, aes(x = PC1, y = PC2, color = LifeSatisfactionCluster, shape = MclustCluster)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) + # Colors for LifeSatisfactionCluster
+  scale_shape_manual(values = c(16, 17, 18, 15, 8)) +  # Different shapes for Mclust Clusters
+  labs(title = "PCA Comparison of Life Satisfaction and Mclust Clusters",
+       x = "Principal Component 1", 
+       y = "Principal Component 2",
+       color = "Life Satisfaction Clusters", 
+       shape = "Mclust Clusters") +
+  theme_minimal()
+
+```
+
+
+## Manual clustering vs K-Means Cluster
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Assuming kmeans_final$cluster contains K-Means cluster assignments
+contingency_table_kmeans <- table(df_wb$LifeSatisfactionCluster, kmeans_final$cluster)
+
+# Viewing the table
+print(contingency_table_kmeans)
+
+```
+
+|   Again we used a heatmap for complementing the table.
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Melt the contingency table for plotting
+melted_table_kmeans <- melt(contingency_table_kmeans)
+
+# Heat Map for K-Means Clusters
+ggplot(data = melted_table_kmeans, aes(x = as.factor(Var1), y = as.factor(Var2), fill = value)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "pink3") +
+  labs(title = "Heatmap of Life Satisfaction vs K-Means Clusters", 
+       x = "K-Means Clusters", 
+       y = "Life Satisfaction Clusters",
+       fill = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+|   Additionally we did used the PCA visualization for further comparison.
+
+```{r, echo=FALSE, warning=FALSE}
+# Add K-Means cluster labels to PCA results
+pca_data$KMeansCluster <- as.factor(kmeans_final$cluster)
+
+# PCA Plot with Manual Colors and Shapes for K-Means
+ggplot(pca_data, aes(x = PC1, y = PC2, color = LifeSatisfactionCluster, shape = KMeansCluster)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) + # Colors for Life Satisfaction Clusters
+  scale_shape_manual(values = c(16, 17, 18, 15, 8)) +  # Different shapes for K-Means Clusters
+  labs(title = "PCA Comparison of Life Satisfaction and K-Means Clusters",
+       x = "Principal Component 1", 
+       y = "Principal Component 2",
+       color = "Life Satisfaction Clusters", 
+       shape = "K-Means Clusters") +
+  theme_minimal()
+```
+
+|   The clusters divided manually **don't overlap** the clusters made by K-Means and M-Clust. The is probably because the scores are subjective, and different people measure life satisfaction scores in different perspectives. For some income would be a major factor, and for others community would be a major factor. However, statistically, we see that the **clustering using M-Clust and K-Means show a good overlap for the 4 clusters with a rand index 0.80**.
+
+\newpage
+
+# Fitting the Regression Models
+
+## Model 1:Linear Regression
+
+```{r, echo=FALSE, warning=FALSE}
+fit_model_1 = lm(`Life.satisfaction.(0-10)` ~ ., data = df_wb %>% select(-Country, -Region, -Code))
+summary(fit_model_1)
+```
+
+|   The **basic regression model** shows that Jobs, Community, Environment, Civic Engagement, Health and Housing are significant for the Life satisfaction score.
+
+## Model 2: Linear Regression using Pairwise Interaction effects
+
+```{r, echo=FALSE, warning=FALSE}
+fit_model_2 <- lm(`Life.satisfaction.(0-10)` ~ .^2, data = df_wb %>% select(-Country, -Region, -Code))
+```
+
+|   For this second model we used a pairwise interaction effect which can be seen in **Anex B**.
+
+|   For individual attributes, we can conclude that:
+*   **Education.(0-10)**: has a positive coefficient (1.52), suggesting that as education increases, life satisfaction tends to increase.
+*   **Income.(0-10)**: has a negative coefficient (-0.53), indicating that higher income is associated with lower life satisfaction in this model, which might be counterintuitive and could require further exploration.
+*   **Health.(0-10)**: has a negative coefficient (-0.71), suggesting that higher health scores correlate with lower life satisfaction in this dataset.
+
+|   When checking the effects by cluster, we can see that:
+*   **Cluster 7.5-10**: is the strongest positive cluster (estimate = 6.23).
+*   **Cluster 2.5-5**: has a notable negative impact (-0.57).
+
+|   On the other hand, although those values represent an important impact to the dependent variable, we can see that none of them is significant in any level.
+
+|   Nevertheless, in this case we observe that some variables might have interaction effects, so we build a different model, and compare with the original one using ANOVA.
+
+## Model 3: Model with Interaction effects based on relevance of factors.
+
+```{r, echo=FALSE, warning=FALSE}
+
+fit_model_3 <- lm(`Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` +
+                  `Income.(0-10)` + `Safety.(0-10)` + `Health.(0-10)` +
+                  `Environment.(0-10)` + `Civic.engagement.(0-10)` +
+                  `Accessiblity.to.services.(0-10)` + `Housing.(0-10)` + 
+                  `Community.(0-10)` + 
+                  `Education.(0-10)`:`Safety.(0-10)` + `Education.(0-10)`:`Accessiblity.to.services.(0-10)` +
+                    `Education.(0-10)`:`Housing.(0-10)`+
+                  `Jobs.(0-10)`:`Income.(0-10)` + `Jobs.(0-10)`:`Safety.(0-10)` +
+                    `Jobs.(0-10)`:`Civic.engagement.(0-10)` +
+                  `Jobs.(0-10)`:`Accessiblity.to.services.(0-10)` + `Jobs.(0-10)`:`Housing.(0-10)` +
+                  `Safety.(0-10)`:`Environment.(0-10)` +
+                  `Safety.(0-10)`:`Civic.engagement.(0-10)` +
+                  `Safety.(0-10)`:`Accessiblity.to.services.(0-10)` +
+                  `Safety.(0-10)`:`Housing.(0-10)` +
+                  `Accessiblity.to.services.(0-10)`:`Community.(0-10)` + 
+                  `Education.(0-10)`:`Jobs.(0-10)`:`Income.(0-10)`,
+                  data=df_wb %>% select(-Country, -Region, -Code))
+summary(fit_model_3)
+
+```
+
+|   This model shows that Education, Environment, "Education & Housing", "Jobs & Civic Engagement", "Safety & Environment", "Safety & Civic Engagement", "Safety and Accessibility to Services", "Accessibility to Services & Community", "Safety & Housing" and "Education & Safety", "Education & Accessibility to Services", "Jobs & Housing" and "Education & Jobs & Income", **are all significant and contribute towards life satisfaction scores**.
+
+|   Furthermore, the model has a **low MSE as compared to the simple model**.
+
+
+## Parameters from the Three Models
+
+### Adjusted R-square
+```{r, echo=FALSE, warning=FALSE}
+paste("Model 1:", summary(fit_model_1)$adj.r.squared)
+paste("Model 2:", summary(fit_model_2)$adj.r.squared)
+paste("Model 3:", summary(fit_model_3)$adj.r.squared)
+```
+
+### AIC
+```{r, echo=FALSE, warning=FALSE}
+paste("Model 1:", AIC(fit_model_1))
+paste("Model 2:", AIC(fit_model_2))
+paste("Model 3:", AIC(fit_model_3))
+```
+
+### BIC
+```{r, echo=FALSE, warning=FALSE}
+paste("Model 1:", BIC(fit_model_1))
+paste("Model 2:", BIC(fit_model_2))
+paste("Model 3:", BIC(fit_model_3))
+```
+
+### Residuals
+```{r, echo=FALSE, warning=FALSE}
+plot(fit_model_1$residuals)
+plot(fit_model_2$residuals)
+plot(fit_model_3$residuals)
+```
+
+### Normality using Q-Q Plots
+```{r, echo=FALSE, warning=FALSE}
+# Check for normality of residuals
+# Model 1
+hist(fit_model_1$residuals, breaks = 20)
+qqnorm(fit_model_1$residuals)
+qqline(fit_model_1$residuals)
+
+# Model 2
+hist(fit_model_2$residuals, breaks = 20)
+qqnorm(fit_model_2$residuals)
+qqline(fit_model_2$residuals)
+
+
+# Model 3
+hist(fit_model_2$residuals, breaks = 20)
+qqnorm(fit_model_2$residuals)
+qqline(fit_model_2$residuals)
+
+```
+
+
+### ANOVA
+
+|   We used ANOVA to check which model is better from Model 1 and Model 3:
+
+```{r, echo=FALSE, warning=FALSE}
+
+anova(fit_model_1, fit_model_3)
+
+```
+
+|   Since the **p-value is 2.2e-16 < 0.05**, we reject the Null Hypothesis and conclude that the **Model 3 with Interaction Terms is the preferred model**.
+
+
+## Random Intercept Model
+
+|   Since the data has hierarchical structure, we fitted the random intercept model:
+
+```{r, echo=FALSE, warning=FALSE}
+
+fit_mem_ri <- lmer(
+  `Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` + `Income.(0-10)` + 
+                             `Safety.(0-10)` + `Health.(0-10)` + `Environment.(0-10)` + 
+                             `Civic.engagement.(0-10)` + 
+                            `Accessiblity.to.services.(0-10)` + 
+                             `Housing.(0-10)` + `Community.(0-10)` + 
+                             (1 | Country), 
+  data = df_wb %>% select(-Region, -Code)
+)
+
+# Summary of the model
+summary(fit_mem_ri)
+
+aic_model_4 <- AIC(fit_mem_ri)
+bic_model_4<-  BIC(fit_mem_ri)
+
+
+```
+
+|   Taking into account this:
+
+* **Significant Effects**: Education, Environment, Community (+ve), and Civic engagement (-ve).
+
+* **Non-significant Effects**: Jobs, Income, Safety, Health, Housing, and Accessibility to services.
+
+* **REML Criterion**: 1,131.8. Measure of model fit for restricted maximum likelihood (REML) estimation. Lower values of the REML criterion indicate a better-fitting model.
+
+
+## Fitting the Random Slope and Random Intercept Model
+
+### Random Intercept Model with Random Slope for Education
+```{r, echo=FALSE, warning=FALSE}
+fit_mem_ri_slope_edu <- lmer(
+  `Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` + `Income.(0-10)` + 
+                             `Safety.(0-10)` + `Health.(0-10)` + `Environment.(0-10)` + 
+                             `Civic.engagement.(0-10)` + `Accessiblity.to.services.(0-10)` + 
+                             `Housing.(0-10)` + `Community.(0-10)` + 
+                             (1 + `Education.(0-10)` | Country),  # Random intercept and slope for Education
+  data = df_wb %>% select(-Region, -Code)
+)
+
+summary(fit_mem_ri_slope_edu)
+
+```
+
+### Random Intercept Model with Random Slope for Community
+```{r, echo=FALSE, warning=FALSE}
+fit_mem_ri_slope_comm <- lmer(
+  `Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` + `Income.(0-10)` + 
+                             `Safety.(0-10)` + `Health.(0-10)` + `Environment.(0-10)` + 
+                             `Civic.engagement.(0-10)` + `Accessiblity.to.services.(0-10)` + 
+                             `Housing.(0-10)` + `Community.(0-10)` + 
+                             (1 + `Community.(0-10)` | Country),  # Random intercept and slope for Education
+  data = df_wb %>% select(-Region, -Code)
+)
+
+summary(fit_mem_ri_slope_comm)
+
+```
+
+
+## Plots for Random Intercept Model
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred <- cbind(df_wb, pred = predict(fit_mem_ri))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+
+```
+
+## Plots for Random Intercept Model with Random Slope for Education
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred_1 <- cbind(df_wb, pred = predict(fit_mem_ri_slope_edu))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+```
+
+
+## Plots for Random Intercept Model with Random Slope for Community
+
+```{r, echo=FALSE, warning=FALSE}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred_1 <- cbind(df_wb, pred = predict(fit_mem_ri_slope_comm))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+```
+
+## R Squared
+
+```{r, echo=FALSE, warning=FALSE}
+r.squared_ri <- r.squaredGLMM(fit_mem_ri)
+
+r.squared_ri_s_e <- r.squaredGLMM(fit_mem_ri_slope_edu)
+
+r.squared_ri_s_c <- r.squaredGLMM(fit_mem_ri_slope_comm)
+
+# Table for data
+
+r_squared_table <- data.frame(
+  Model = c("Random Intercept Model", 
+            "Random Intercept with Random Slope for Education", 
+            "Random Intercept with Random Slope for Community"),
+  R_Squared_Marginal = c(r.squared_ri[1], r.squared_ri_s_e[1], r.squared_ri_s_c[1]),
+  R_Squared_Conditional = c(r.squared_ri[2], r.squared_ri_s_e[2], r.squared_ri_s_c[2])
+)
+
+print(r_squared_table)
+
+
+```
+
+|   The table shows improvement in explanation of variables by the model with a random slope for Community. Further, it is noteworthy that the improvement over base models is not significant.
+
+
+## Residual Analysis
+
+```{r, echo=FALSE, warning=FALSE}
+
+plot(fit_model_1$residuals)
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Check for homoscedasticity (constant variance) by plotting residuals vs fitted values
+plot(fitted(fit_model_1), residuals(fit_model_1))
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Check for normality of residuals
+hist(fit_model_1$residuals, breaks = 20)
+qqnorm(fit_model_1$residuals)
+qqline(fit_model_1$residuals)
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Residuals for Model 4 (Mixed-Effects Model)
+residuals_mem <- residuals(fit_mem_ri)
+
+# Plot residuals
+plot(residuals_mem)
+
+# Check for homoscedasticity (plot residuals vs fitted values)
+plot(fitted(fit_mem_ri), residuals_mem)
+
+# Check for normality of residuals (Histogram and Q-Q plot)
+hist(residuals_mem, breaks = 20)
+qqnorm(residuals_mem)
+qqline(residuals_mem)
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+# Fitted values for Model 4 (Mixed-Effects Model)
+fitted_values_mem <- fitted(fit_mem_ri)
+
+# Plot residuals vs fitted values for homoscedasticity
+plot(fitted_values_mem, residuals_mem)
+```
+
+### Creating Dot Plots
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE}
+
+# Extract random effects
+random_effects_mem <- ranef(fit_mem_ri)
+
+# Plot random effects (use the random intercept and slope values)
+dotplot(random_effects_mem)
+```
+
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Extract random effects
+random_effects_mem_ed <- ranef(fit_mem_ri_slope_edu)
+
+# Plot random effects (use the random intercept and slope values)
+dotplot(random_effects_mem_ed)
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE}
+# Extract random effects
+random_effects_mem_comm <- ranef(fit_mem_ri_slope_comm)
+
+# Plot random effects (use the random intercept and slope values)
+dotplot(random_effects_mem_comm)
+
+```
+
+## AIC and BIC of the four models
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Extract AIC and BIC for each model
+aic_model_1 <- AIC(fit_model_1)
+bic_model_1 <- BIC(fit_model_1)
+
+aic_model_2 <- AIC(fit_model_2)
+bic_model_2 <- BIC(fit_model_2)
+
+aic_model_3 <- AIC(fit_model_3)
+bic_model_3 <- BIC(fit_model_3)
+
+aic_model_4 <- AIC(fit_mem_ri)
+bic_model_4 <- BIC(fit_mem_ri)
+
+aic_model_5 <- AIC(fit_mem_ri_slope_edu)
+bic_model_5 <- BIC(fit_mem_ri_slope_edu)
+
+aic_model_6 <- AIC(fit_mem_ri_slope_comm)
+bic_model_6 <- BIC(fit_mem_ri_slope_comm)
+
+# BIC Skipped, as we created complex models, and BIC always favors simple model
+
+
+# Comparison Table
+comparison_table <- data.frame(
+  Model = c("Model 1", "Model 2", "Model 3", "Model 4 (Random Intercept)", "Model 5 (RI+S_Edu", "Model 6 (RI+S_Comm)"),
+  AIC = c(aic_model_1, aic_model_2, aic_model_3, aic_model_4, aic_model_5, aic_model_6),
+  BIC = c(bic_model_1, bic_model_2, bic_model_3, bic_model_4, bic_model_5, bic_model_6)
+)
+
+comparison_table
+
+```
+
+|   From this comparison, we see that the **Interaction effect no group model** gives a better fit for the data, instead of the complex models. This can be due to the fact that we lack enough data points in each category, thus making the complex models work poorly.
+
+
+# Conclusion
+|   To conclude, we can say that.......
+
+\newpage
+
+# Appendix
+
+## A: Summary of Clusters with Model Fitted
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Summary of Clusters with Model Fitted by EM algorithm and a view counts in each cluster along with BIC values. 
+summary(wb_optimal_cst, parameters = TRUE)
+
+```
+
+## B: Summary of Linear Regression using Pairwise Interaction effects
+
+```{r, echo=FALSE, warning=FALSE}
+summary(fit_model_2)
 ```
