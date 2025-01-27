@@ -3,8 +3,15 @@ title: "Regional Well Being"
 author: Akash Mittal, Maged Saeed Abdo Mostafa Kharshom, Precious Prince, Franco Reinaldo
   Bonifacini
 date: "`r Sys.Date()`"
-output: pdf_document
+output:
+  pdf_document:
+    fig_caption: true
+    number_sections: true
 ---
+
+\newpage
+\tableofcontents
+\newpage
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 library(openxlsx) # to read and write Excel files (.xlsx) in R
@@ -24,12 +31,14 @@ library(randomcoloR) # used for generating colors
 library(RColorBrewer) # used for generating colors
 library(pheatmap) # for heatmap
 library(mclust)
+library(cluster)
 library(readr)
 
 library(lme4) # for linear mixed effects modeling + functions for fitting and analyzing linear mixed effects models
 library(insight) # functions for model-agnostic interpretation and visualization of regression models
 library(MuMIn)
 library(lattice)
+library(Rtsne)
 ```
 
 # Abstract
@@ -464,9 +473,35 @@ plot2
 
 # Clustering
 
+|   Clustering is a machine learning technique used to group similar data points into clusters. In this project, we used three clustering methods to compare and analyze the results.
+
+|   Under clustering analysis, we explored various clustering techniques to group countries based on different features, such as life satisfaction, income, and civic engagement. The clustering methods employed include **MClust, K-Means, and K-Medoids**. We use these techniques to analyze the data, create different cluster profiles, and compare the clustering results. We also use dimensionality reduction methods like **PCA and T-SNE** for visualizing the clusters, and various statistical plots to examine the distribution and characteristics of each cluster.
+
+## MClust – Model-Based Clustering**
+
+|   MClust is a probabilistic clustering method that models the data using a mixture of Gaussian distributions. It is based on the assumption that each cluster follows a normal distribution, but each cluster can have different means and variances.
+
+|   For analysing the clusters, we use BIC criteria and then we plot the classification, uncertainty and density plots.
+
+|   Classification Plot: The classification step assigns each data point (country) to a specific cluster. The MClust model automatically performs this step and outputs the cluster assignments for each country.
+
+|   Uncertainty Plot: Uncertainty plots show the probability of a data point belonging to a specific cluster. These plots highlight how certain or uncertain the model is about assigning a particular data point to a cluster.
+
+|   Density Plot: Density plots visualize the distribution of the data within each cluster. These plots show how the data points are distributed across the different feature values, and help us understand the characteristics of each cluster.
+
+## KMeans – K-Means Clustering
+
+|   K-Means is one of the most widely used clustering algorithms. It works by partitioning the data into K clusters, where each cluster is represented by its centroid (mean of the points within that cluster).
+
+## KMedoids – K-Medoids Clustering
+
+|   K-Medoids is a clustering algorithm similar to K-Means, but instead of using centroids, it uses actual data points as the center of clusters, making it more robust to noise and outliers.
+
 ```{r, echo=FALSE, warning=FALSE}
+df_clustering <- df_wb
+
 # Selecting only the Numeric Columns (predictor columns) to scale the data
-df_mod <- df_wb %>% select(-Country, -Region, -Code, -`Life.satisfaction.(0-10)`)
+df_mod <- df_clustering %>% select(-Country, -Region, -Code, -`Life.satisfaction.(0-10)`)
 
 # Scaling the dataframe
 df_mod <- scale(df_mod) # But gives a matrix as output
@@ -526,7 +561,7 @@ plot(wb_optimal_cst, what = 'density', legendArgs = legend_args)
 
 \newpage
 
-|   After this, we applied Principal Component Analysis (PCA) to _**reduce the dataset's dimensionality**_. This allowed us to plot the identified clusters in a two-dimensional space, providing a clear and intuitive representation of their separation and structure.
+|   After this, we applied **Principal Component Analysis (PCA)** to _**reduce the dataset's dimensionality**_. This allowed us to plot the identified clusters in a two-dimensional space, providing a clear and intuitive representation of their separation and structure.
 
 ```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 # Plotting the Four clusters using PC Components for better visualization.
@@ -549,10 +584,9 @@ ggplot(pca_data, aes(x = PC1, y = PC2, color = Cluster)) +
 ```
 
 
-|   Furthermore, we employed t-SNE (t-Distributed Stochastic Neighbor Embedding) for a better visualization. This technique maps high-dimensional data into a lower-dimensional space while preserving the local structure (cluster), offering an alternative perspective on the clustering results.
+|   Furthermore, we employed **t-SNE (t-Distributed Stochastic Neighbor Embedding)** for a better visualization. This technique maps high-dimensional data into a lower-dimensional space while preserving the local structure (cluster), offering an alternative perspective on the clustering results.
 
 ```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
-library(Rtsne)
 set.seed(218)
 # Performing t-SNE
 tsne <- Rtsne(df_mod, dims = 2)
@@ -591,10 +625,9 @@ print(cluster_means)
 
 ```
 
-
 |   We used a bar plot to show the contribution of each feature in every cluster, with base reference to the average (mean) value of the feature. We can mainly see that for cluster 1, all the features have a positive value, more than the average value for all parameters.
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 # Convert the cluster_means to a long format for easy plotting
 cluster_means_long <- cluster_means %>%
   pivot_longer(cols = -Cluster, names_to = "Feature", values_to = "Mean_Value")
@@ -620,7 +653,7 @@ ggplot(cluster_means_long, aes(x = Feature, y = Mean_Value, fill = Cluster)) +
 
 |   Moreover, we generated a scatter plot of **Income vs Civic Engagement** for the four clusters, highlighting the distribution of each cluster based on these two variables.
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 
 # Calculating the centroids of clusters (average value of Income and Civic Engagement for each cluster)
 
@@ -646,7 +679,7 @@ ggplot(df_mod, aes(x = `Income.(0-10)`, y = `Civic.engagement.(0-10)`, color = a
 
 |   We also created a heatmap displaying the average values of factors in each cluster, with the data scaled to a baseline of 0. This plot is presented alongside the average plot to provide a clear comparison of the cluster characteristics.
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 
 # Calculate the mean of each feature by cluster
 cluster_means <- df_mod %>%
@@ -662,22 +695,25 @@ pheatmap(as.matrix(cluster_means[, -1]),
 
 ```
 
+\newpage
 
 |   Later on, we went into more detail by plotting the **average Life Satisfaction Score** in each cluster.
 
 ```{r, echo=FALSE, warning=FALSE}
 
 # Adding the predicted clusters to the original dataset
-df_wb$Cluster <- wb_optimal_cst$classification
+df_clustering$Cluster <- wb_optimal_cst$classification
 
 # Calculating the mean Life Satisfaction score for each cluster
-life_satisfaction_avg <- df_wb %>%
+life_satisfaction_avg <- df_clustering %>%
   group_by(Cluster) %>%
   summarise(Average_Life_Satisfaction = mean(`Life.satisfaction.(0-10)`))
 
 # View the results
 print(life_satisfaction_avg)
+```
 
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 # Visualizing using a bar plot of average Life Satisfaction by cluster
 ggplot(life_satisfaction_avg, aes(x = as.factor(Cluster), y = Average_Life_Satisfaction, fill = as.factor(Cluster))) +
   geom_bar(stat = "identity") +
@@ -691,13 +727,14 @@ ggplot(life_satisfaction_avg, aes(x = as.factor(Cluster), y = Average_Life_Satis
   theme(plot.title = element_text(hjust=0.5))
 ```
 
+|   The **average life satisfaction scores** show that there is not a significant difference between the average values of Cluster 1 and Cluster 4, similarly with Cluster 2 and Cluster 3.
 
-|   Finally, we created a histogram and a density plot for the four clusters to explore how **Life Satisfaction** behaves and its distribution within each cluster.
+|   So finally, we created a histogram and a density plot for the four clusters to explore how **Life Satisfaction** behaves and its distribution within each cluster.
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 
 # Creating histogram and highlighting the points by 4 cluster
-ggplot(df_wb, aes(x = `Life.satisfaction.(0-10)`, fill = as.factor(Cluster))) +
+ggplot(df_clustering, aes(x = `Life.satisfaction.(0-10)`, fill = as.factor(Cluster))) +
   geom_histogram(bins = 30, color = "black", alpha = 0.7) +
   labs(title = "Histogram of Life Satisfaction by Cluster", 
        x = "Life Satisfaction (0-10)", 
@@ -707,10 +744,10 @@ ggplot(df_wb, aes(x = `Life.satisfaction.(0-10)`, fill = as.factor(Cluster))) +
 
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 
 # Create a density plot and highlight the clusters
-ggplot(df_wb, aes(x = `Life.satisfaction.(0-10)`, color = as.factor(Cluster))) +
+ggplot(df_clustering, aes(x = `Life.satisfaction.(0-10)`, color = as.factor(Cluster))) +
   geom_density(size = 1.5) +  # Adjust the line thickness
   labs(title = "Density Plot of Life Satisfaction by Cluster", 
        x = "Life Satisfaction (0-10)", 
@@ -721,10 +758,11 @@ ggplot(df_wb, aes(x = `Life.satisfaction.(0-10)`, color = as.factor(Cluster))) +
 
 ```
 
+|   Looking at both the histogram and density plots, we could see that there was not a clear separation among the four clusters.
 
 ## K-Means
 
-|   Continuing with our clustering analysis, we decided to do a K-Means clustering to cross check.
+|   Continuing with our clustering analysis, we decided to do a K-Means clustering to cross check and compare with the Mclust clusters.
 
 ```{r, echo=FALSE, warning=FALSE}
 # Creating a new dataframe for K-Means
@@ -766,7 +804,7 @@ table(df_mod_k$Cluster_Kmeans)
 ```
 
 
-## Comparing K-Means vs MCLUSt
+### Comparing K-Means vs MCLUSt
 
 |   First, we did a **contingency table** to quickly compare both models:
 
@@ -781,7 +819,6 @@ cluster_comparison <- table(df_mod_k$Cluster_Mclust, df_mod_k$Cluster_Kmeans)
 cluster_comparison_r_c_sum <- addmargins(cluster_comparison)
 
 # Printing the comparison
-cat("\nContingency Table: Mclust and K-means Clusters Comparison\n")
 cat("\nRows: Mclust Clusters\nColumns: K-means Clusters\n")
 print(cluster_comparison_r_c_sum)
 ```
@@ -799,13 +836,62 @@ ggplot(df_mod_k, aes(x = Cluster_Mclust, y = Cluster_Kmeans, color = Cluster_Mcl
   theme(plot.title = element_text(hjust=0.5))
 ```
 
+|   The contingency table and the scatter plot show that the clusters are approximately in line from both the models. So, we go ahead and check the Rand-Index.
 
-|   Moreover, This plot shows how the different cities of the countries are segregated/distributed in the 5 clusters.
+|   The **Rand Index Comparison** is:
+
+```{r, echo=FALSE, warning=FALSE}
+
+adjustedRandIndex(wb_optimal_cst$classification, kmeans_final$cluster)
+
+```
+
+|   This also shows that the 4 clusters made by these two models are working in agreement with each other.
+
+## K-Medoids Clustering
+
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
+# K-medoids 
+kmedoids_res <- pam(df_mod, k = 4)  # 4 clusters
+
+# Clustering results
+table(kmedoids_res$clustering)
+
+# Plot of the clusters
+ggplot(df_mod, aes(x = `Income.(0-10)`, y = `Civic.engagement.(0-10)`, color = as.factor(kmedoids_res$clustering))) +
+  geom_point(alpha = 0.8) +
+  labs(title = "K-medoids (Robust K-Means)", x = "Income", y = "Civic Engagement", color = "Cluster") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898")) +  
+  theme_minimal() +
+  theme(plot.title = element_text(hjust="0.5"))
+
+```
+
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
+
+kmedoids_clusters <- kmedoids_res$clustering
+
+# Scatter plot comparing K-medoids and Mclust clustering results
+ggplot(df_mod_k, aes(x = Cluster_Mclust, y = kmedoids_clusters, color = as.factor(kmedoids_clusters))) +
+  geom_jitter(alpha = 0.9, size=2) +
+  labs(title = "Comparison of Mclust and K-medoids Clustering",
+       x = "Mclust Clusters", y = "K-medoids Clusters") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+|   We see that there is a only a minor agreement between clusters made from K-Means and K-Medoids, which is due to the reason that K-Medoids is more robust, uses representative points and doesn't work on centroids of data.
+
+|   Furthermore, we see a strong agreement between MClust and K-Means, which means data is probably in a structure suitable for both models. Also, K-Medoids is a distance based appraoch, while MClust is probabilistic approach.
+
+|   Moreover, the cluster wise distribution shows that Cluster 4 is majorly composed of regions from USA only (with a higher Life Satisfaction Score), further cluster 3 includes Chile & Colombia.
 
 ```{r, echo=FALSE, warning=FALSE}
 
 # Adding the Country Column to df_mod
-df_mod$Country <- df_wb$Country
+df_mod$Country <- df_clustering$Country
 
 # Summary table with count of the number of entries for each country in each cluster
 country_cluster_distribution <- df_mod %>%
@@ -814,8 +900,8 @@ country_cluster_distribution <- df_mod %>%
 
 # Cluster-Wise Distribution of Countries
 
-custom_palette_15 <- c("#004949","#009292", "#490092","#006ddb","#b66dff","#F6D854", "#E41A1C", "#4DAF4A", "#A65628", "#f1cbcc",
-                       "#999999", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854")
+custom_palette_15 <- c("#004949","#009292", "#490092","#006ddb","#b66dff","#F6D854", "#E41A1C", "#4DAF4A", "#A65628",
+                       "#f1cbcc","#999999", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854")
 
 ggplot(country_cluster_distribution, aes(x = Cluster, y = Count, fill = Country)) +
   geom_bar(stat = "identity", position = "stack") +
@@ -829,16 +915,6 @@ ggplot(country_cluster_distribution, aes(x = Cluster, y = Count, fill = Country)
 
 ```
 
-|   The **Rand Index Comparison** is:
-
-```{r, echo=FALSE, warning=FALSE}
-
-adjustedRandIndex(wb_optimal_cst$classification, kmeans_final$cluster)
-
-```
-
-|   This demonstrates a strong agreement between the two clustering solutions, with a notable overlap of the clusters identified by both techniques.
-
 ## Further Analysis for Clustering
 
 |   After all the analysis done, we decided to further analyse **Life Satisfaction**, so we manually divided it in 4 clusters. We divided the range 0-10 into 4 groups:
@@ -851,13 +927,13 @@ adjustedRandIndex(wb_optimal_cst$classification, kmeans_final$cluster)
 ```{r, echo=FALSE, warning=FALSE}
 
 # Creating 4 clusters based on Life Satisfaction scores
-df_wb$LifeSatisfactionCluster <- cut(df_wb$`Life.satisfaction.(0-10)`, 
+df_clustering$LifeSatisfactionCluster <- cut(df_clustering$`Life.satisfaction.(0-10)`, 
                                   breaks = c(0, 2.5, 5, 7.5, 10), 
                                   labels = c("0-2.5", "2.5-5", "5-7.5", "7.5-10"), 
                                   include.lowest = TRUE)
 
 # Checking the new column
-table(df_wb$LifeSatisfactionCluster)
+table(df_clustering$LifeSatisfactionCluster)
 
 ```
 
@@ -869,31 +945,11 @@ table(df_wb$LifeSatisfactionCluster)
 
 # Creating contingency table
 mclust_clusters <- wb_optimal_cst$classification  # wb_optimal_cst contains Mclust clusters
-contingency_table_mclust <- table(df_wb$LifeSatisfactionCluster, mclust_clusters)
+contingency_table_mclust <- table(df_clustering$LifeSatisfactionCluster, mclust_clusters)
 
 # Viewing the table
 print(contingency_table_mclust)
 
-```
-
-|   For complementing this table, we used a heatmap to compare both ways of clustering:
-
-```{r, echo=FALSE, warning=FALSE}
-# Melt the contingency table for plotting
-melted_table <- melt(contingency_table_mclust)
-
-# Rename the columns for clarity
-colnames(melted_table) <- c("LifeSatisfactionCluster", "MclustCluster", "value")
-
-# Heat Map
-ggplot(data = melted_table, aes(x = MclustCluster, y = LifeSatisfactionCluster, fill = value)) +
-  geom_tile() +
-  scale_fill_gradient(low = "white", high = "lightblue3") +
-  labs(title = "Heatmap of Life Satisfaction vs Mclust Clusters", 
-       x = "Mclust Clusters", 
-       y = "Life Satisfaction Clusters") + 
-  theme_minimal()+
-  theme(plot.title = element_text(hjust=0.5))
 ```
 
 |   Additionally, we used a PCA visualization for further comparison between these two clustering methods.
@@ -904,7 +960,7 @@ pca_res <- prcomp(df_mod[, -c(11, 12)], scale. = TRUE)
 
 # Add cluster labels to PCA results
 pca_data <- data.frame(pca_res$x, 
-                       LifeSatisfactionCluster = as.factor(df_wb$LifeSatisfactionCluster), 
+                       LifeSatisfactionCluster = as.factor(df_clustering$LifeSatisfactionCluster), 
                        MclustCluster = as.factor(mclust_clusters))
 
 # PCA Plot with Manual Colors for LifeSatisfactionCluster
@@ -927,30 +983,10 @@ ggplot(pca_data, aes(x = PC1, y = PC2, color = LifeSatisfactionCluster, shape = 
 ```{r, echo=FALSE, warning=FALSE}
 
 # Assuming kmeans_final$cluster contains K-Means cluster assignments
-contingency_table_kmeans <- table(df_wb$LifeSatisfactionCluster, kmeans_final$cluster)
+contingency_table_kmeans <- table(df_clustering$LifeSatisfactionCluster, kmeans_final$cluster)
 
 # Viewing the table
 print(contingency_table_kmeans)
-
-```
-
-|   Again we used a heatmap for complementing the table.
-
-```{r, echo=FALSE, warning=FALSE}
-
-# Melt the contingency table for plotting
-melted_table_kmeans <- melt(contingency_table_kmeans)
-
-# Heat Map for K-Means Clusters
-ggplot(data = melted_table_kmeans, aes(x = as.factor(Var1), y = as.factor(Var2), fill = value)) +
-  geom_tile() +
-  scale_fill_gradient(low = "white", high = "pink3") +
-  labs(title = "Heatmap of Life Satisfaction vs K-Means Clusters", 
-       x = "K-Means Clusters", 
-       y = "Life Satisfaction Clusters",
-       fill = "Count") +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust=0.5))
 
 ```
 
@@ -975,7 +1011,32 @@ ggplot(pca_data, aes(x = PC1, y = PC2, color = LifeSatisfactionCluster, shape = 
 
 |   The clusters divided manually **don't overlap** the clusters made by K-Means and M-Clust. The is probably because the scores are subjective, and different people measure life satisfaction scores in different perspectives. For some income would be a major factor, and for others community would be a major factor. However, statistically, we see that the **clustering using M-Clust and K-Means show a good overlap for the 4 clusters with a rand index 0.80**.
 
-\newpage
+
+## Conclusion of Clustering Approach
+
+|   Finally, we compared the metrics:
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Compute Adjusted Rand Index (ARI)
+ari_kmeans_pam <- adjustedRandIndex(kmeans_final$cluster, kmedoids_res$clustering)
+ari_kmeans_mclust <- adjustedRandIndex(kmeans_final$cluster, wb_optimal_cst$classification)
+ari_pam_mclust <- adjustedRandIndex(kmedoids_res$clustering, wb_optimal_cst$classification)
+
+# Print the results
+print(paste("ARI between K-Means and K-Medoids:", ari_kmeans_pam))
+print(paste("ARI between K-Means and Mclust:", ari_kmeans_mclust))
+print(paste("ARI between K-Medoids and Mclust:", ari_pam_mclust))
+```
+
+|   We see that there is only a minor agreement between clusters made from K-Means and K-Medoids, which is due to the reason that K-Medoids is more robust, uses representative points and doesn't work on centroids of data.
+
+|   Further, we see a strong agreement between MClust and K-Means, which means data is probably in a structure suitable for both models.
+
+|   Also, K-Medoids is a distance based appraoch, while MClust is probabilistic approach.
+
+|   Hence, we conclude that the clusters formed by MClust and K-Means are better representation of the available data for Life Satisfaction Scores. However, for a better robust approach, more data and a detailed analysis can be performed using further clustering techniques like DBSCAN and spectral based clustering etc.
+
 
 # Fitting the Regression Models
 
@@ -986,7 +1047,9 @@ fit_model_1 = lm(`Life.satisfaction.(0-10)` ~ ., data = df_wb %>% select(-Countr
 summary(fit_model_1)
 ```
 
-|   The **basic regression model** shows that Jobs, Community, Environment, Civic Engagement, Health and Housing are significant for the Life satisfaction score.
+|   This **regression model explains approximately 61.3%** of the variation in life satisfaction* (adjusted R-squared = 59.9%). **Significant predictors** include **Jobs (0-10), Environment (0-10), Housing (0-10), and Community (0-10)**, all positively associated with life satisfaction, as indicated by their significant p-values (p < 0.01). Among these, **Jobs (0-10)** has the strongest effect (Estimate = 0.348). Other variables such as **Education, Income, and Safety do not show significant** associations with life satisfaction at the 5% significance level. **The residual standard error of 1.542** suggests moderate variability not explained by the model.
+
+|   Overall, the model identifies key factors that contribute to life satisfaction but suggests some room for improvement in capturing other influences.
 
 ## Model 2: Linear Regression using Pairwise Interaction effects
 
@@ -994,49 +1057,35 @@ summary(fit_model_1)
 fit_model_2 <- lm(`Life.satisfaction.(0-10)` ~ .^2, data = df_wb %>% select(-Country, -Region, -Code))
 ```
 
-|   For this second model we used a pairwise interaction effect which can be seen in **Anex B**.
+|   The second model (**Anex B**) includes interaction terms and explains **79.5% of the variation in life satisfaction (adjusted R-squared = 74.6%)**, showing a substantial improvement in explanatory power compared to the first model. Significant main effects include **Safety (0-10), Environment (0-10), Civic engagement (0-10), and Community (0-10)**, among others.
 
-|   For individual attributes, we can conclude that:
-*   **Education.(0-10)**: has a positive coefficient (1.52), suggesting that as education increases, life satisfaction tends to increase.
-*   **Income.(0-10)**: has a negative coefficient (-0.53), indicating that higher income is associated with lower life satisfaction in this model, which might be counterintuitive and could require further exploration.
-*   **Health.(0-10)**: has a negative coefficient (-0.71), suggesting that higher health scores correlate with lower life satisfaction in this dataset.
-
-|   When checking the effects by cluster, we can see that:
-*   **Cluster 7.5-10**: is the strongest positive cluster (estimate = 6.23).
-*   **Cluster 2.5-5**: has a notable negative impact (-0.57).
-
-|   On the other hand, although those values represent an important impact to the dependent variable, we can see that none of them is significant in any level.
-
-|   Nevertheless, in this case we observe that some variables might have interaction effects, so we build a different model, and compare with the original one using ANOVA.
+|   Several interaction terms are also significant, such as **Education x Safety, Jobs x Income, and Safety x Accessibility to Services**, indicating that the relationship between life satisfaction and these predictors depends on other variables. The residual standard error is reduced to 1.227, suggesting better fit and less unexplained variability. However, some predictors and interactions remain insignificant, suggesting that not all modeled interactions are meaningful. This model highlights the complex, interconnected nature of factors influencing life satisfaction.
 
 ## Model 3: Model with Interaction effects based on relevance of factors.
 
 ```{r, echo=FALSE, warning=FALSE}
 
 fit_model_3 <- lm(`Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` +
-                  `Income.(0-10)` + `Safety.(0-10)` + `Health.(0-10)` +
-                  `Environment.(0-10)` + `Civic.engagement.(0-10)` +
-                  `Accessiblity.to.services.(0-10)` + `Housing.(0-10)` + 
-                  `Community.(0-10)` + 
-                  `Education.(0-10)`:`Safety.(0-10)` + `Education.(0-10)`:`Accessiblity.to.services.(0-10)` +
+                    `Income.(0-10)` + `Safety.(0-10)` + `Health.(0-10)` +
+                    `Environment.(0-10)` + `Civic.engagement.(0-10)` +
+                    `Accessiblity.to.services.(0-10)` + `Housing.(0-10)` + `Community.(0-10)` +
+                    `Education.(0-10)`:`Safety.(0-10)` + `Education.(0-10)`:`Accessiblity.to.services.(0-10)` +
                     `Education.(0-10)`:`Housing.(0-10)`+
-                  `Jobs.(0-10)`:`Income.(0-10)` + `Jobs.(0-10)`:`Safety.(0-10)` +
+                    `Jobs.(0-10)`:`Income.(0-10)` + `Jobs.(0-10)`:`Safety.(0-10)` +
                     `Jobs.(0-10)`:`Civic.engagement.(0-10)` +
-                  `Jobs.(0-10)`:`Accessiblity.to.services.(0-10)` + `Jobs.(0-10)`:`Housing.(0-10)` +
-                  `Safety.(0-10)`:`Environment.(0-10)` +
-                  `Safety.(0-10)`:`Civic.engagement.(0-10)` +
-                  `Safety.(0-10)`:`Accessiblity.to.services.(0-10)` +
-                  `Safety.(0-10)`:`Housing.(0-10)` +
-                  `Accessiblity.to.services.(0-10)`:`Community.(0-10)` + 
-                  `Education.(0-10)`:`Jobs.(0-10)`:`Income.(0-10)`,
+                    `Jobs.(0-10)`:`Accessiblity.to.services.(0-10)` + `Jobs.(0-10)`:`Housing.(0-10)` +
+                    `Safety.(0-10)`:`Environment.(0-10)` +
+                    `Safety.(0-10)`:`Civic.engagement.(0-10)` +
+                    `Safety.(0-10)`:`Accessiblity.to.services.(0-10)` +
+                    `Safety.(0-10)`:`Housing.(0-10)` +
+                    `Accessiblity.to.services.(0-10)`:`Community.(0-10)`,
                   data=df_wb %>% select(-Country, -Region, -Code))
+
 summary(fit_model_3)
 
 ```
 
-|   This model shows that Education, Environment, "Education & Housing", "Jobs & Civic Engagement", "Safety & Environment", "Safety & Civic Engagement", "Safety and Accessibility to Services", "Accessibility to Services & Community", "Safety & Housing" and "Education & Safety", "Education & Accessibility to Services", "Jobs & Housing" and "Education & Jobs & Income", **are all significant and contribute towards life satisfaction scores**.
-
-|   Furthermore, the model has a **low MSE as compared to the simple model**.
+|   The regression model incorporates main effects and interaction terms to explain life satisfaction, achieving an adjusted **R-squared of 0.7316. Key positive predictors include income, community, and jobs interacting with civic engagement, while significant negative effects are observed for safety, civic engagement, and environment**. Notable interactions, such as education with accessibility to services and safety with housing, reveal nuanced relationships where factors amplify or mitigate one another’s influence. The significant interactions highlight the complexity of factors contributing to life satisfaction, suggesting the need for targeted, context-sensitive policy interventions.
 
 
 ## Parameters from the Three Models
@@ -1048,12 +1097,16 @@ paste("Model 2:", summary(fit_model_2)$adj.r.squared)
 paste("Model 3:", summary(fit_model_3)$adj.r.squared)
 ```
 
+|   Adjusted R2R2 measures how well the model explains the variance in the dependent variable while adjusting for the number of predictors. **Model 2** performs best with the highest adjusted R2R2 of **0.7458**, showing it explains the most variance. **Model 3** slightly trails behind with **0.7316**, but it likely avoids overfitting by focusing on fewer relevant interaction terms.
+
 ### AIC
 ```{r, echo=FALSE, warning=FALSE}
 paste("Model 1:", AIC(fit_model_1))
 paste("Model 2:", AIC(fit_model_2))
 paste("Model 3:", AIC(fit_model_3))
 ```
+
+|   AIC penalizes model complexity and evaluates the goodness of fit. Lower values are better. **Model 3** has the lowest AIC (**965.94**), indicating it balances fit and complexity better than the others. **Model 2** has a higher AIC (**977.15**) than Model 3, suggesting it may be slightly more complex or less efficient in terms of fit.
 
 ### BIC
 ```{r, echo=FALSE, warning=FALSE}
@@ -1062,18 +1115,27 @@ paste("Model 2:", BIC(fit_model_2))
 paste("Model 3:", BIC(fit_model_3))
 ```
 
+|   BIC penalizes complexity more heavily than AIC. Lower values indicate better performance. **Model 3** again has the lowest BIC (**1057.25**), outperforming the others in terms of simplicity and fit. **Model 2** has the highest BIC (**1185.34**), suggesting over-complexity compared to Model 1 and Model 3.
+
+\newpage
+
 ### Residuals
-```{r, echo=FALSE, warning=FALSE}
+
+|   Lower RSE implies better model performance. **Model 3** has the lowest RSE (**1.261**), indicating it predicts life satisfaction with less error compared to simpler models.
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 plot(fit_model_1$residuals)
 plot(fit_model_2$residuals)
 plot(fit_model_3$residuals)
 ```
 
 ### Normality using Q-Q Plots
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 # Check for normality of residuals
 # Model 1
 hist(fit_model_1$residuals, breaks = 20)
+```
+
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 qqnorm(fit_model_1$residuals)
 qqline(fit_model_1$residuals)
 
@@ -1090,6 +1152,11 @@ qqline(fit_model_2$residuals)
 
 ```
 
+|   Conclusion:
+
+*   **Model 3** strikes the best balance between goodness of fit (AIC/BIC) and prediction error (RSE).
+*   **Model 2** has the highest adjusted R2R2, meaning it explains more variance but at the cost of complexity (higher BIC).
+*   **Model 1** is the simplest but performs worst in all metrics, making it the least suitable.
 
 ### ANOVA
 
@@ -1101,7 +1168,9 @@ anova(fit_model_1, fit_model_3)
 
 ```
 
-|   Since the **p-value is 2.2e-16 < 0.05**, we reject the Null Hypothesis and conclude that the **Model 3 with Interaction Terms is the preferred model**.
+|   **The Analysis of Variance (ANOVA) test compares Model 1 and Model 3** to assess whether the inclusion of interaction effects in Model 3 significantly improves the model’s fit. **Model 3 has fewer residual degrees of freedom** (261 vs. 274) due to the inclusion of 13 additional interaction terms, which increases the number of estimated parameters. **The Residual Sum of Squares (RSS) is considerably lower in Model 3** (415.07 vs. 651.16), indicating that it explains more variability in life satisfaction.
+
+|   **The difference in RSS between the models is 236.09**, demonstrating that the interaction terms in Model 3 significantly enhance the model's performance. **The F-statistic (11.42)** and the highly significant **p-value (p < 2.2e-16) confirm that the inclusion of these interaction effects leads to a statistically significant improvement in model fit. While Model 3 captures the relationships in the data better**, this improvement comes with **increased complexity** due to the additional interaction terms.
 
 
 ## Random Intercept Model
@@ -1129,18 +1198,32 @@ bic_model_4<-  BIC(fit_mem_ri)
 
 ```
 
-|   Taking into account this:
+|   **The Random Intercept Model** was fitted to account for the hierarchical structure in the data, with random intercepts for each country. This model is useful when we expect that the baseline life satisfaction differs across countries, but the relationships between predictors and life satisfaction remain consistent within each country.
 
-* **Significant Effects**: Education, Environment, Community (+ve), and Civic engagement (-ve).
+|   The model's random effects show that the variance in life satisfaction between countries (Intercept) is 1.760 with a standard deviation of 1.327. The residual variance (within-country variability) is 1.903 with a standard deviation of 1.380. These results suggest that there is a moderate degree of variability both between countries and within countries.
 
-* **Non-significant Effects**: Jobs, Income, Safety, Health, Housing, and Accessibility to services.
+|   For the fixed effects, the significant predictors of life satisfaction include **Education** (positive relationship, estimate = 0.24477, p-value < 0.05), **Environment** (positive relationship, estimate = 0.16097, p-value < 0.05), and **Community** (positive relationship, estimate = 0.19783, p-value < 0.001). Other variables, such as **Jobs, Income, Safety, Health, and Civic engagement**, did not show significant effects at the conventional 5% level. These results suggest that education, environmental factors, and community engagement have notable impacts on life satisfaction, while income, safety, and health appear to have a more limited influence when accounting for the hierarchical structure.
 
-* **REML Criterion**: 1,131.8. Measure of model fit for restricted maximum likelihood (REML) estimation. Lower values of the REML criterion indicate a better-fitting model.
+*   **Significant Effects**: Education, Environment, Community, and Civic engagement.
+
+*   **Non-significant Effects**: Jobs, Income, Safety, Health, Housing, and Accessibility to services.
+
+*   **REML Criterion**: 1131.8. Measure of model fit for restricted maximum likelihood (REML) estimation. Lower values of the REML criterion indicate a better-fitting model.
+
+
+|   **The AIC (Akaike Information Criterion)** for this model is **1082.41**, which is a measure of the model’s goodness of fit while penalizing for complexity (number of parameters). A lower AIC indicates a better-fitting model when compared to other models. This value suggests that the model balances fit and complexity reasonably well.
+
+|   **The BIC (Bayesian Information Criterion)** is **1129.892**, which is similar to AIC but applies a stronger penalty for the number of parameters, especially as the number of observations increases. A lower BIC value would generally be preferred for selecting simpler models that fit the data adequately, but in this case, the relatively high BIC indicates that the model may be somewhat complex.
+
+|   Based on the AIC and BIC, **Model 3** is the most efficient and well-fitting model. **Model 4** (the random intercept model) does not outperform the simpler models in terms of AIC and BIC, though it accounts for the hierarchical structure of the data.
 
 
 ## Fitting the Random Slope and Random Intercept Model
 
 ### Random Intercept Model with Random Slope for Education
+
+|   We extended the random intercept model to allow for both a **random intercept** and a **random slope** for Education across countries. This model accounts for variability in life satisfaction not only at the country level (via the random intercept) but also for differences in the relationship between education and life satisfaction across countries (via the random slope for Education).
+
 ```{r, echo=FALSE, warning=FALSE}
 fit_mem_ri_slope_edu <- lmer(
   `Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` + `Income.(0-10)` + 
@@ -1155,7 +1238,38 @@ summary(fit_mem_ri_slope_edu)
 
 ```
 
+|   The **REML criterion** at convergence is 1048.3, indicating the fit of the model to the data. Below is a breakdown of the key findings from the model:
+
+1. **Random Effects**:
+*   **Country**: The model estimates variability in the intercept and slope across 14 countries.
+*   **Intercept**: The variance of the random intercept is 3.9982, with a standard deviation of 1.9996.
+*   **Slope for Education**: The variance for the random slope of Education is 0.1283, with a standard deviation of 0.3582. The negative correlation of **-0.91** between the intercept and slope for Education suggests that countries with higher intercepts (higher life satisfaction overall) tend to have a weaker positive association between Education and life satisfaction.
+*   **Residual**: The variance of the residual (unexplained by the model) is 1.8176, with a standard deviation of 1.3482.
+
+2. **Fixed Effects**:
+*   **Intercept**: The estimated intercept is 2.7197, indicating the baseline life satisfaction when all predictors are at their reference levels.
+*   **Education**: The coefficient for Education is 0.18364, but it is not statistically significant (t = 1.288, p > 0.05), suggesting that the overall effect of Education on life satisfaction is not significant when accounting for random variation across countries.
+*   **Jobs**: The coefficient for Jobs is 0.15171, and it is statistically significant (t = 2.091), indicating a positive relationship between jobs and life satisfaction.
+*   **Income**: The coefficient for Income is -0.01495, and it is not statistically significant (t = -0.117), suggesting that income has a negligible effect on life satisfaction in this model.
+*   **Safety**: The coefficient for Safety is -0.11387, and it is statistically significant (t = -2.077), suggesting a negative relationship between safety and life satisfaction.
+*   **Environment**: The coefficient for Environment is 0.18495, and it is statistically significant (t = 2.616), suggesting a positive impact of environmental quality on life satisfaction.
+*   **Community**: The coefficient for Community is 0.18027, and it is statistically significant (t = 4.346), indicating that a sense of community is positively associated with life satisfaction.
+
+3. **Model Diagnostics**:
+*   **The scaled residuals** show that most values are within a reasonable range, with the minimum residual being -4.0770 and the maximum being 4.1388. These values suggest that the model does not exhibit extreme outliers.
+*   **The correlation of fixed effects** reveals some relationships between the predictors. For instance, there is a strong negative correlation (-0.506) between the intercept and Education, suggesting that the countries with higher baseline life satisfaction tend to have a weaker association between Education and life satisfaction.
+
+|   The random intercept and random slope model provides insights into how life satisfaction varies both within countries and across countries. The random slope for Education suggests that while Education may have a positive effect on life satisfaction, the strength of this effect varies considerably across countries. Although the coefficient for Education is not statistically significant overall, the model reveals that the relationship between Education and life satisfaction is not uniform across countries.
+
+|   Additionally, variables like **Community, Jobs, and Environment** show significant positive effects on life satisfaction, whereas **Safety and Income** are not significantly associated with life satisfaction in this model. This model improves our understanding by accounting for country-level variations, offering a more nuanced perspective on the factors influencing life satisfaction.
+
+|   This model can serve as an important basis for policy discussions, especially when considering the role of Education and other factors in improving life satisfaction at a national level.
+
+
 ### Random Intercept Model with Random Slope for Community
+
+|   The model used here includes random intercepts and random slopes for **Community** in order to account for varying impacts of community engagement on **Life Satisfaction** across different countries. The random slope for community allows for the relationship between community and life satisfaction to differ by country, while the random intercept accounts for the baseline differences in life satisfaction across countries.
+
 ```{r, echo=FALSE, warning=FALSE}
 fit_mem_ri_slope_comm <- lmer(
   `Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` + `Income.(0-10)` + 
@@ -1170,58 +1284,36 @@ summary(fit_mem_ri_slope_comm)
 
 ```
 
+1. **Random Effects**:
+*   **Country (Intercept)**: The variance of the intercept is **3.257**, with a standard deviation of **1.8047**, indicating substantial variability in the baseline life satisfaction across the 14 countries in the study.
+*   **Country (Community Slope)**: The variance for the random slope of **Community is 0.029**, with a standard deviation of **0.1703**, indicating that the relationship between community engagement and life satisfaction varies somewhat across countries. The negative correlation of **-0.75** suggests that countries with higher baseline life satisfaction tend to have a weaker positive relationship between community engagement and life satisfaction.
+*   **Residual**: The residual variance is **1.782**, with a standard deviation of **1.3351**, representing unexplained variation in life satisfaction after accounting for both fixed and random effects.
 
-## Plots for Random Intercept Model
+2. **Fixed Effects**:
+*   **Intercept (2.05779)**: The baseline life satisfaction, when all predictors are set to zero, is **2.05779**, and this effect is statistically significant (t = 2.121).
+*   **Education (0.20139)**: The coefficient for **Education is 0.20139**, and it is **statistically significant** (t = 2.005). This suggests that higher levels of education are positively associated with life satisfaction.
+*   **Jobs (0.13475)**: The effect of Jobs on life satisfaction is **statistically significt** (t = 1.957), indicating that better job satisfaction contributes positively to life satisfaction.
+*   **Income (-0.04688)**: The effect of Income is **not statistically significant** (t = -0.394), suggesting that income does not have a clear relationship with life satisfaction in this model.
+*   **Safety (-0.06680)**: The coefficient for Safety is **not statistically significant** (t = -1.233), implying that safety concerns do not significantly impact life satisfaction in this model.
+*   **Health (-0.01616)**: The effect of Health is **not statistically significant** (t = -0.209), indicating no significant relationship between health and life satisfaction.
+*   **Environment (0.15195)**: The coefficient for Environment is **statistically significant** (t = 2.243), showing a positive relationship between environmental quality and life satisfaction.
+*   **Civic Engagement (-0.15918)**: The coefficient for Civic Engagement is **statistically significant** (t = -2.317), suggesting that greater civic engagement is negatively associated with life satisfaction in this model.
+*   **Accessibility to Services (0.10479)**: The effect of Accessibility to Services is not statistically significant (t = 1.230), indicating that access to services does not significantly affect life satisfaction.
+*   **Housing (0.14577)**: The effect of Housing on life satisfaction is **marginally significant** (t = 1.727), suggesting a potential positive relationship, though further investigation may be necessary to confirm this.
+*   **Community (0.20786)**: The coefficient for Community is **statistically significant** (t = 2.977), indicating that greater community engagement is positively associated with life satisfaction. This suggests that individuals who feel more connected to their communities tend to report higher life satisfaction.
 
-```{r, echo=FALSE, warning=FALSE, message = FALSE}
-# plotting the predicted and the original values on separate regression plots.
+3. **Correlation of Fixed Effects**: The correlation of fixed effects shows that **Education and Community** have a slight negative correlation of **-0.048**, indicating a small inverse relationship between these two factors across countries. This suggests that countries with higher education levels might have slightly less emphasis on community engagement, though this correlation is not large enough to be of significant concern.
 
-# Create a dataframe with the original data and predicted values
-data_with_pred <- cbind(df_wb, pred = predict(fit_mem_ri))
+4. **Model Diagnostics**:
+*   **Scaled residuals** range from **-3.8163 to 3.6315**, with most residuals clustered around zero. The absence of extreme values indicates that the model fits the data reasonably well.
+*   **The negative correlation** between the intercept and slope for **Community** (-0.75) suggests that in countries with higher baseline life satisfaction, the impact of community on life satisfaction is weaker. This could imply that community engagement plays a larger role in improving life satisfaction in countries with lower overall life satisfaction.
 
-ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
-  facet_wrap(~ Country) + 
-  theme_minimal() + 
-  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+|   **The Random Intercept and Random Slope Model for Community** provides valuable insights into the factors influencing life satisfaction across countries. **Community engagement** is positively related to life satisfaction, with countries that have stronger community ties showing higher life satisfaction. **Education and Jobs** are also significant predictors of life satisfaction, with education showing a positive relationship and jobs contributing to greater satisfaction. **Civic engagement**, however, is negatively associated with life satisfaction, suggesting that greater civic participation may not always enhance life satisfaction in the countries in this study. The model reveals that **environmental quality** is a significant factor in life satisfaction, further emphasizing the importance of quality of life in both personal and community settings.
 
-```
-
-## Plots for Random Intercept Model with Random Slope for Education
-
-```{r, echo=FALSE, warning=FALSE, message = FALSE}
-# plotting the predicted and the original values on separate regression plots.
-
-# Create a dataframe with the original data and predicted values
-data_with_pred_1 <- cbind(df_wb, pred = predict(fit_mem_ri_slope_edu))
-
-ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
-  facet_wrap(~ Country) + 
-  theme_minimal() + 
-  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
-```
-
-
-## Plots for Random Intercept Model with Random Slope for Community
-
-```{r, echo=FALSE, warning=FALSE}
-# plotting the predicted and the original values on separate regression plots.
-
-# Create a dataframe with the original data and predicted values
-data_with_pred_1 <- cbind(df_wb, pred = predict(fit_mem_ri_slope_comm))
-
-ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
-  facet_wrap(~ Country) + 
-  theme_minimal() + 
-  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
-```
 
 ## R Squared
+
+|   The **R-squared** values provide insights into the proportion of variance in life satisfaction explained by the models, both marginally (accounting for fixed effects) and conditionally (accounting for both fixed and random effects). Here are the results for the three models:
 
 ```{r, echo=FALSE, warning=FALSE}
 r.squared_ri <- r.squaredGLMM(fit_mem_ri)
@@ -1245,63 +1337,18 @@ print(r_squared_table)
 
 ```
 
-|   The table shows improvement in explanation of variables by the model with a random slope for Community. Further, it is noteworthy that the improvement over base models is not significant.
+*   **The Random Intercept Model** explains **41.64%** of the variance in life satisfaction through fixed effects alone (marginal R-squared). After accounting for country-specific variations, the model explains **69.68%** of the total variance in life satisfaction (conditional R-squared).
+
+*   ***The Random Intercept with Random Slope for Education** model marginally explains **40.35%** of the variance in life satisfaction. Including the random slopes for education results in a conditional R-squared of **71.39%**, suggesting that the random effects (differences between countries) account for a substantial portion of the variance, with education having a varying impact across countries.
+
+*   **The Random Intercept with Random Slope for Community** model has the highest marginal R-squared at **42.77%**, indicating that the model's fixed effects explain slightly more variance compared to the others. The conditional R-squared value of **70.65%** suggests that the inclusion of random slopes for community engagement further explains the variability in life satisfaction between countries.
+
+|   In summary, while all three models show substantial explanatory power for life satisfaction, the **Random Intercept with Random Slope for Education model** provides the highest overall fit, followed closely by the **Community model**. The inclusion of random slopes in both the education and community models improves the explanation of variability in life satisfaction across countries.
 
 
-## Residual Analysis
+|   Dotplot of Random Effects from the Model with a Random Intercept and Random Slope:
 
-```{r, echo=FALSE, warning=FALSE}
-
-plot(fit_model_1$residuals)
-
-```
-
-```{r, echo=FALSE, warning=FALSE}
-
-# Check for homoscedasticity (constant variance) by plotting residuals vs fitted values
-plot(fitted(fit_model_1), residuals(fit_model_1))
-
-```
-
-```{r, echo=FALSE, warning=FALSE}
-
-# Check for normality of residuals
-hist(fit_model_1$residuals, breaks = 20)
-qqnorm(fit_model_1$residuals)
-qqline(fit_model_1$residuals)
-
-```
-
-
-```{r, echo=FALSE, warning=FALSE}
-
-# Residuals for Model 4 (Mixed-Effects Model)
-residuals_mem <- residuals(fit_mem_ri)
-
-# Plot residuals
-plot(residuals_mem)
-
-# Check for homoscedasticity (plot residuals vs fitted values)
-plot(fitted(fit_mem_ri), residuals_mem)
-
-# Check for normality of residuals (Histogram and Q-Q plot)
-hist(residuals_mem, breaks = 20)
-qqnorm(residuals_mem)
-qqline(residuals_mem)
-
-```
-
-```{r, echo=FALSE, warning=FALSE}
-# Fitted values for Model 4 (Mixed-Effects Model)
-fitted_values_mem <- fitted(fit_mem_ri)
-
-# Plot residuals vs fitted values for homoscedasticity
-plot(fitted_values_mem, residuals_mem)
-```
-
-### Creating Dot Plots
-
-```{r, echo=FALSE, warning=FALSE, message = FALSE}
+```{r, echo=FALSE, warning=FALSE, message = FALSE, fig.width=15, fig.height=8}
 
 # Extract random effects
 random_effects_mem <- ranef(fit_mem_ri)
@@ -1311,7 +1358,7 @@ dotplot(random_effects_mem)
 ```
 
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 
 # Extract random effects
 random_effects_mem_ed <- ranef(fit_mem_ri_slope_edu)
@@ -1322,7 +1369,7 @@ dotplot(random_effects_mem_ed)
 ```
 
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 # Extract random effects
 random_effects_mem_comm <- ranef(fit_mem_ri_slope_comm)
 
@@ -1331,7 +1378,9 @@ dotplot(random_effects_mem_comm)
 
 ```
 
-## AIC and BIC of the four models
+\newpage
+
+## Comparison of Models
 
 ```{r, echo=FALSE, warning=FALSE}
 
@@ -1368,11 +1417,13 @@ comparison_table
 
 ```
 
-|   From this comparison, we see that the **Interaction effect no group model** gives a better fit for the data, instead of the complex models. This can be due to the fact that we lack enough data points in each category, thus making the complex models work poorly.
+|   **Model 3** appears to provide the best fit in terms of AIC and BIC, suggesting it strikes the best balance between model complexity and accuracy, while the inclusion of random slopes (in Models 5 and 6) does not significantly improve the model's performance as indicated by the AIC/BIC comparison. From this comparison, we see that the Interaction effect no group model gives a better fit for the data, instead of the complex models. This can be due to the fact that we lack enough data points in each category, thus making the complex models work poorly.
 
 
 # Conclusion
-|   To conclude, we can say that.......
+|   To conclude, the clustering analysis successfully grouped regions into distinct clusters, revealing significant disparities in well-being influenced by factors such as housing, community, and employment. The regression models provided robust insights into the relationships between these factors and **life satisfaction**, emphasizing the importance of **housing and community** as primary determinants, alongside **income and safety**.
+
+|   While economic factors are crucial, **social and environmental** aspects play an equally, if not more, significant role in shaping **life satisfaction**. However, future research could further refine these models by incorporating additional data and exploring temporal trends to better understand how life satisfaction evolves over time.
 
 \newpage
 
