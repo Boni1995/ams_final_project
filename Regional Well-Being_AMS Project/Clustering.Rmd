@@ -1,0 +1,743 @@
+### Loading the Required Preliminary Libraries
+
+```{r}
+# Loading the required Libraries
+library(dplyr)
+library(ggplot2)
+library(mclust)
+library(readr)
+library(openxlsx)
+```
+
+### Loading the Data from the Excel File and scaling it.
+At the end we have 311 observations for 11 variables (+3 are Country, Region and Code)
+
+```{r}
+df <- read.xlsx("data_filtered.xlsx")
+str(df)
+df <- df %>%
+  filter(Country != "Türkiye")
+```
+
+```{r}
+# Selecting only the Numeric Columns (predictor columns) to scale the data
+
+df_mod <- df %>% dplyr::select(-Country, -Region, -Code, -`Life.satisfaction.(0-10)`)
+
+# Scaling the dataframe
+df_mod <- scale(df_mod) # But gives a matrix as output
+
+# Converting back to dataframe
+df_mod <- as.data.frame(df_mod)
+
+```
+
+
+```{r}
+# Checking the updated structure of the dataframe
+str(df_mod)
+```
+
+### Performing the Model Based Clustering on the dataset.
+
+### Clustering using MClust (Model Based Clustering)
+
+```{r}
+# Selecting 5 clusters and choosing an Optimal Cluster out of all the possible combinations 
+wb_optimal_cst <- Mclust(df_mod, G=1:5) # setting the number of optimal clusters to be chosen from 1 to 5.
+
+# Summary of Clusters with Model Fitted by EM algorithm and a view counts in each cluster along with BIC values. 
+summary(wb_optimal_cst, parameters = TRUE)
+
+```
+
+The summary shows the number of optimal clusters to be 4. 
+-> Mclust VEV (ellipsoidal, equal shape) model with 4 components. Fitted a Gaussian MIxture Model by EM Algorithm. 
+
+
+###### Plot of BIC vs Number of Components Used for Clustering
+###### Classification and Uncertainty plots of different clusters
+
+```{r}
+
+# Reference 1 - https://mclust-org.github.io/mclust/reference/plot.Mclust.html
+# Reference 2 - https://mclust-org.github.io/mclust-book/chapters/03_cluster.html#:~:text=Model-based%20clustering%20%28MBC%29%20is%20a%20probabilistic%20approach%20to,described%20by%20a%20probability%20distribution%20with%20unknown%20parameters.
+
+# Legend position (for styling)
+legend_args <- list(x = "bottomright", ncol = 5)
+```
+
+```{r}
+x11()
+# Plotting BIC to assess model fit
+plot(wb_optimal_cst, what = 'BIC', legendArgs = legend_args)
+```
+
+```{r}
+x11()
+# Plotting classification of data points
+plot(wb_optimal_cst, what = 'classification', fillEllipses = TRUE)
+```
+
+```{r}
+x11()
+# Plotting the uncertainty 
+plot(wb_optimal_cst, what = 'uncertainty')
+```
+
+```{r}
+x11()
+# Plot density distribution of the data within clusters
+plot(wb_optimal_cst, what = 'density', legendArgs = legend_args)
+
+```
+
+```{r}
+# Skipped Portion (Not necessary)
+# uncertainty_mclust <- data.frame(
+#   id = 1:nrow(df_mod),
+#   cluster = wb_optimal_cst$classification,
+#   uncertainty = wb_optimal_cst$uncertainty
+# )
+# 
+# # Rescale uncertainty for better visualization (optional)
+# uncertainty_mclust$rescaled_uncertainty <- uncertainty_mclust$uncertainty * 100  # Scaling by 100 for example
+# 
+# # Now, plot the rescaled uncertainty
+# ggplot(uncertainty_mclust, aes(x = rescaled_uncertainty, y = reorder(id, rescaled_uncertainty))) +
+#   geom_point() +
+#   facet_wrap(~ cluster, scales = 'free_y', nrow = 1) +
+#   theme_minimal()
+```
+
+
+###### Using PCA to plot the different clusters for visualization
+
+```{r}
+# Plotting the Four clusters using PC Components for better visualization.
+# Performing PCA using prcomp
+pca <- prcomp(df_mod, scale. = TRUE)
+
+# first two principal components
+pca_data <- data.frame(pca$x[, 1:2])
+
+# Using the cluster assignments from Mclust
+pca_data$Cluster <- factor(wb_optimal_cst$classification)
+
+# Plotting the MClust clusters on PCA plot
+ggplot(pca_data, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(alpha = 0.9, size = 2) +
+  theme_minimal() +
+  labs(title = "PCA Plot with the 5 Clusters from MClust", x = "Principal Component 1", y = "Principal Component 2") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d"))+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+###### Using T-SNE also for Visualization
+
+```{r}
+library(Rtsne)
+set.seed(218)
+# Performing t-SNE
+tsne <- Rtsne(df_mod, dims = 2)
+
+# t-SNE coordinates
+tsne_data <- data.frame(tsne$Y)
+
+# Cluster assignments from Mclust
+tsne_data$Cluster <- factor(wb_optimal_cst$classification)
+
+# Plotting t-SNE with MClust clusters
+ggplot(tsne_data, aes(x = X1, y = X2, color = Cluster)) +
+  geom_point(alpha = 0.9, size = 2) +
+  theme_minimal() +
+  labs(title = "t-SNE Plot with the 5 Clusters from MClust", x = "t-SNE Dimension 1", y = "t-SNE Dimension 2") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+```{r}
+# checking summary of df_mod just for an overview 
+#summary(df_mod)
+```
+
+###### Adding the Clusters to original data frame and checking the means for each
+
+```{r}
+# Adding the cluster assignments to the original dataset
+df_mod$Cluster <- factor(wb_optimal_cst$classification)
+
+# Calculating  mean of each feature for every cluster and storing in dataframe cluster_means
+cluster_means <- df_mod %>%
+  group_by(Cluster) %>%
+  summarise(across(everything(), mean))
+
+# Viewing the cluster profiles
+print(cluster_means)
+
+```
+
+###### Bar Plots for Each Feature and Cluster
+This plot shows the contribution of each feature in the every cluster with base reference to the average (mean) value of the feature.
+We see, for cluster 1, all the features have a value more than the average value for all parameters.
+
+```{r}
+
+library(tidyr)
+
+# Convert the cluster_means to a long format for easy plotting
+cluster_means_long <- cluster_means %>%
+  pivot_longer(cols = -Cluster, names_to = "Feature", values_to = "Mean_Value")
+
+# Creating the bar plot for each feature by cluster
+ggplot(cluster_means_long, aes(x = Feature, y = Mean_Value, fill = Cluster)) +
+  geom_bar(stat = "identity", position = "dodge", alpha=0.9,color = "black", linewidth = 0.1) +
+  labs(title = "Average Feature Values by Cluster", 
+       x = "Feature", 
+       y = "Average Value") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +  # Rotate x-axis labels
+  scale_fill_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Cluster colors
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+
+###### Heatmap displaying the comparison for each cluster and the values - Skipped
+
+```{r}
+# # Cross-tabulating the original life satisfaction clusters with predicted clusters
+# cluster_comparison <- table(df$`Life.satisfaction.(0-10)`, df_mod$Cluster)
+# 
+# # Create a heatmap of the comparison
+# library(pheatmap)
+# pheatmap(cluster_comparison, 
+#          color = colorRampPalette(c("white", "blue"))(100),
+#          main = "Comparison Heatmap",
+#          display_numbers = TRUE,
+#          cluster_rows = TRUE, 
+#          cluster_cols = TRUE,
+#          angle_col = 45)
+
+```
+
+###### Uncertainty Plot of the 4 MClust clusters
+
+```{r}
+# Plot uncertainty of the cluster assignments
+plot(wb_optimal_cst, what = "uncertainty")
+
+```
+
+###### Scatter plot of Income vs Civic Engagement for the 4 Clusters
+To show the distribution of the four clusters only.
+
+```{r}
+# Create a scatter plot for Income vs Civic Engagement with clusters
+ggplot(df_mod, aes(x = `Income.(0-10)`, y = `Civic.engagement.(0-10)`, color = as.factor(wb_optimal_cst$classification))) +
+  geom_point(alpha = 0.9, size = 2) +
+  labs(title = "Income vs Civic Engagement (Scaled) by Cluster", 
+       x = "Income", y = "Civic Engagement", 
+       color = "Cluster") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Adjust color palette as needed
+  theme_minimal()+
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+###### Plot with the centroids for the Income vs Civic Engagement for the 4 Clusters
+
+```{r}
+
+# Calculating the centroids of clusters (average value of Income and Civic Engagement for each cluster)
+
+centroids <- df_mod %>%
+  group_by(Cluster) %>%
+  summarise(Income_mean = mean(`Income.(0-10)`),
+            Civic_mean = mean(`Civic.engagement.(0-10)`))
+
+# Plotting the scatter plot with centroids
+ggplot(df_mod, aes(x = `Income.(0-10)`, y = `Civic.engagement.(0-10)`, color = as.factor(wb_optimal_cst$classification))) +
+  geom_point(alpha = 0.9, size = 2) +
+  geom_point(data = centroids, aes(x = Income_mean, y = Civic_mean), 
+             color = "grey1", size = 4, shape = 8, stroke = 2) +  # Centroids as large black stars
+  labs(title = "Income vs Civic Engagement (Scaled) by Cluster with Centroids", 
+       x = "Income", y = "Civic Engagement", 
+       color = "Cluster") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+###### Cluster Profile Heatmap with average values of factors in each cluster
+
+The values are from base line 0, as the data had been scaled.
+-> This plot is shown in presentation in combination with the Average Plot.
+
+```{r}
+
+library(pheatmap)
+
+# Calculate the mean of each feature by cluster
+cluster_means <- df_mod %>%
+  group_by(Cluster) %>%
+  summarise(across(starts_with("Education"):starts_with("Community"), mean))
+
+# Plot heatmap
+pheatmap(as.matrix(cluster_means[, -1]), 
+         cluster_rows = TRUE, cluster_cols = TRUE,
+         main = "Cluster Profiles Heatmap",
+         scale = "row",  # Scale variables by row (features)
+         display_numbers = TRUE)
+
+```
+
+###### Bar Plot for all the 4 clusters showing the average Life Satisfaction Score in Each cluster
+
+It shows the average life satisfaction score in each cluster.
+
+```{r}
+
+# Adding the predicted clusters to the original dataset
+df$Cluster <- wb_optimal_cst$classification
+
+# Calculating the mean Life Satisfaction score for each cluster
+life_satisfaction_avg <- df %>%
+  group_by(Cluster) %>%
+  summarise(Average_Life_Satisfaction = mean(`Life.satisfaction.(0-10)`))
+
+# View the results
+print(life_satisfaction_avg)
+
+# Visualizing using a bar plot of average Life Satisfaction by cluster
+ggplot(life_satisfaction_avg, aes(x = as.factor(Cluster), y = Average_Life_Satisfaction, fill = as.factor(Cluster))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = round(Average_Life_Satisfaction, 2)),  # Adding labels (rounded to 2 decimal places)
+            vjust = -0.5,  # Adjust position of text above the bar
+            color = "black") +  # Color of the text
+  labs(title = "Average Life Satisfaction by Cluster", x = "Cluster", y = "Average Life Satisfaction (0-10)") +
+  scale_fill_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Adjust colors for clusters
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+```{r}
+# str(df)
+```
+
+###### Plotting Histograms and Density plots for the 4 clusters
+
+```{r}
+# Density Plot for Life.Satisfaction Score
+# histogram(df$`Life.satisfaction.(0-10)`, df, type = c("count"))
+# densityplot(df$`Life.satisfaction.(0-10)`, df)
+```
+
+Histogram
+
+```{r}
+
+# Creating histogram and highlighting the points by 4 cluster
+ggplot(df, aes(x = `Life.satisfaction.(0-10)`, fill = as.factor(Cluster))) +
+  geom_histogram(bins = 30, color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Life Satisfaction by Cluster", 
+       x = "Life Satisfaction (0-10)", 
+       y = "Frequency") +
+  scale_fill_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Adjust colors for clusters
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+Density Plots for the 4 clusters.
+
+```{r}
+
+# Create a density plot and highlight the clusters
+ggplot(df, aes(x = `Life.satisfaction.(0-10)`, color = as.factor(Cluster))) +
+  geom_density(size = 1.5) +  # Adjust the line thickness
+  labs(title = "Density Plot of Life Satisfaction by Cluster", 
+       x = "Life Satisfaction (0-10)", 
+       y = "Density") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +  # Adjust colors for clusters
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+```{r}
+
+```
+
+
+##################
+
+## Using K-Means for Clustering and comparing the Clusters
+
+### Doing K-Means Clustering to cross check
+
+```{r}
+# Creating a new dataframe for K-Means
+df_mod_k <- df_mod %>% select(-Cluster)
+# str(df_mod_k)
+```
+
+###### Running K-Means
+
+```{r}
+
+# K-means clustering for 10 different values of k=1 to k=10.
+set.seed(123)  # Seed for reproducibility
+kmeans_results <- list()
+for (k in 1:10) {
+  kmeans_results[[k]] <- kmeans(df_mod_k, centers = k, nstart = 100)
+}
+
+
+```
+
+###### Elbow Method For Number of Cluster Selection
+It shows a kink at K=2, but we move ahead to choose upto 4 clusters after which the Within-Cluster sum of squares starts to fade off.
+
+```{r}
+
+# Plotting the total within-cluster sum of squares for different k values
+wss <- sapply(kmeans_results, function(x) x$tot.withinss)
+plot(1:10, wss, type = "b", pch = 19, xlab = "Number of Clusters", 
+     ylab = "Total Within-Cluster Sum of Squares", main = "Elbow Method for K-means")
+
+```
+
+###### Running K-Means with 4 Clusters
+
+```{r}
+# Running K-means, k=4
+kmeans_final <- kmeans(df_mod_k, centers = 4, nstart = 100)
+
+# Adding K-means cluster assignment to the dataframe
+df_mod_k$Cluster_Kmeans <- as.factor(kmeans_final$cluster)
+
+# Overview of the cluster assignments in 5 clusters
+cat("Count of Cities in Each Cluster from K-Means\n")
+table(df_mod_k$Cluster_Kmeans)
+
+
+```
+
+### Comparing K-Means and MCluSt
+
+```{r}
+# Clusters from both the Models
+df_mod_k$Cluster_Mclust <- factor(wb_optimal_cst$classification) # Mclust
+df_mod_k$Cluster_Kmeans <- as.factor(kmeans_final$cluster) # K-Means
+
+```
+
+###### Contingency Table for the Two Models
+
+```{r}
+# Contingency table comparing Mclust and K-means cluster assignments
+cluster_comparison <- table(df_mod_k$Cluster_Mclust, df_mod_k$Cluster_Kmeans)
+
+cluster_comparison_r_c_sum <- addmargins(cluster_comparison)
+
+# Printing the comparison
+cat("\nContingency Table: Mclust and K-means Clusters Comparison\n")
+cat("\nRows: Mclust Clusters\nColumns: K-means Clusters\n")
+print(cluster_comparison_r_c_sum)
+```
+
+##### Scatter Plot Comparing the Clusters by K-Means and MClust
+
+```{r}
+# Scatter plot comparing K-means and Mclust clustering results
+ggplot(df_mod_k, aes(x = Cluster_Mclust, y = Cluster_Kmeans, color = Cluster_Mclust)) +
+  geom_jitter(alpha = 0.9, size=2) +
+  labs(title = "Comparison of Mclust and K-means Clustering",
+       x = "Mclust Clusters", y = "K-means Clusters") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+```
+## Further, Analysis
+
+###### Country Wise Distribution across different clusters
+```{r}
+
+# Adding the Country Column to df_mod
+df_mod$Country <- df$Country
+
+# Summary table with count of the number of entries for each country in each cluster
+country_cluster_distribution <- df_mod %>%
+  group_by(Cluster, Country) %>%
+  summarise(Count = n(), .groups = 'drop')
+```
+
+###### Plot of Country Wise Distribution across the Clusters
+This plot shows how the different cities of the countries are segregated/ distributed in the 4 clusters
+
+```{r}
+
+# Cluster-Wise Distribution of Countries
+
+library(RColorBrewer)
+
+custom_palette_15 <- c("#004949","#009292", "#490092","#006ddb","#b66dff","#F6D854", "#E41A1C", "#4DAF4A", "#A65628", "#f1cbcc",
+                       "#999999", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854")
+
+ggplot(country_cluster_distribution, aes(x = Cluster, y = Count, fill = Country)) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(aes(label = Count), position = position_stack(vjust = 0.5), color = "white") +  # Counts Inside the Horizontal Strips
+  coord_flip() +  # Flipping Axes For horizontal bars
+  labs(title = "Cluster-wise Distribution of Countries", 
+       x = "Cluster", y = "Count of Cities from Each Country") +
+  scale_fill_manual(values = custom_palette_15) +  # Using the custom color palette
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+###### Rand Index Comparison
+
+```{r}
+
+adjustedRandIndex(wb_optimal_cst$classification, kmeans_final$cluster)
+
+```
+
+Thus, shows a strong agreement between the two clustering solutions i.e. a good overlap of the clusters by both techniques.
+
+##################################################################
+
+### Further check by specifically dividing the groups into 4 categories and comparing the clusters.
+
+### Need to Do analysis of Original Clusters vs CLusters as Identified by Mclust and K-Means
+
+## Analysis By dividing the Life.Satisfaction Score into 4 groups 0-10 divided into 2 groups of 2 scale each.
+
+###### Dividing the Life.satisfaction.(0-10) score into 4 clusters-
+
+```{r}
+
+# Creating 4 clusters based on Life Satisfaction scores
+df$LifeSatisfactionCluster <- cut(df$`Life.satisfaction.(0-10)`, 
+                                  breaks = c(0, 2.5, 5, 7.5, 10), 
+                                  labels = c("0-2.5", "2.5-5", "5-7.5", "7.5-10"), 
+                                  include.lowest = TRUE)
+
+# Checking the new column
+table(df$LifeSatisfactionCluster)
+
+```
+
+###### Comparison with M-Clust
+
+Contingency Table
+
+```{r}
+
+# Creating contingency table
+mclust_clusters <- wb_optimal_cst$classification  # wb_optimal_cst contains Mclust clusters
+contingency_table_mclust <- table(df$LifeSatisfactionCluster, mclust_clusters)
+
+# Viewing the table
+print(contingency_table_mclust)
+
+```
+
+Heatmap
+
+```{r}
+
+library(ggplot2)
+library(reshape2)
+
+# Melt the contingency table for plotting
+melted_table <- melt(contingency_table_mclust)
+
+# Rename the columns for clarity
+colnames(melted_table) <- c("LifeSatisfactionCluster", "MclustCluster", "value")
+
+# Heat Map
+ggplot(data = melted_table, aes(x = MclustCluster, y = LifeSatisfactionCluster, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "lightblue3") +
+  labs(title = "Heatmap of Life Satisfaction vs Mclust Clusters", 
+       x = "Mclust Clusters", 
+       y = "Life Satisfaction Clusters") + 
+  theme_minimal()+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+Visualization with PCA
+
+```{r}
+# Perform PCA on df_mod (standardized data)
+pca_res <- prcomp(df_mod[, -c(11, 12)], scale. = TRUE)
+
+# Add cluster labels to PCA results
+pca_data <- data.frame(pca_res$x, 
+                       LifeSatisfactionCluster = as.factor(df$LifeSatisfactionCluster), 
+                       MclustCluster = as.factor(mclust_clusters))
+
+# PCA Plot with Manual Colors for LifeSatisfactionCluster
+ggplot(pca_data, aes(x = PC1, y = PC2, color = LifeSatisfactionCluster, shape = MclustCluster)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) + # Colors for LifeSatisfactionCluster
+  scale_shape_manual(values = c(16, 17, 18, 15, 8)) +  # Different shapes for Mclust Clusters
+  labs(title = "PCA Comparison of Life Satisfaction and Mclust Clusters",
+       x = "Principal Component 1", 
+       y = "Principal Component 2",
+       color = "Life Satisfaction Clusters", 
+       shape = "Mclust Clusters") +
+  theme_minimal()
+
+```
+
+The plot shows the comparison of Mclust Clusters with the Original Clusters.
+
+#### K-Means Cluster Comparison with Life-Satisfaction Original Clusters
+
+Contingency Table
+
+```{r}
+
+# Assuming kmeans_final$cluster contains K-Means cluster assignments
+contingency_table_kmeans <- table(df$LifeSatisfactionCluster, kmeans_final$cluster)
+
+# Viewing the table
+print(contingency_table_kmeans)
+
+```
+
+Heatmap
+
+```{r}
+
+# Melt the contingency table for plotting
+melted_table_kmeans <- melt(contingency_table_kmeans)
+
+# Heat Map for K-Means Clusters
+ggplot(data = melted_table_kmeans, aes(x = as.factor(Var1), y = as.factor(Var2), fill = value)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "pink3") +
+  labs(title = "Heatmap of Life Satisfaction vs K-Means Clusters", 
+       x = "K-Means Clusters", 
+       y = "Life Satisfaction Clusters",
+       fill = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+Visualization
+
+```{r}
+# Add K-Means cluster labels to PCA results
+pca_data$KMeansCluster <- as.factor(kmeans_final$cluster)
+
+# PCA Plot with Manual Colors and Shapes for K-Means
+ggplot(pca_data, aes(x = PC1, y = PC2, color = LifeSatisfactionCluster, shape = KMeansCluster)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) + # Colors for Life Satisfaction Clusters
+  scale_shape_manual(values = c(16, 17, 18, 15, 8)) +  # Different shapes for K-Means Clusters
+  labs(title = "PCA Comparison of Life Satisfaction and K-Means Clusters",
+       x = "Principal Component 1", 
+       y = "Principal Component 2",
+       color = "Life Satisfaction Clusters", 
+       shape = "K-Means Clusters") +
+  theme_minimal()
+```
+
+The plot shows the comparison of K-Means Clusters with the Original Clusters.
+
+Note: The clusters when divided manually into 4 groups, they don't overlap the clusters made by K-Means and Mclust. The probable reason being that the scores are subjective and different people measure life satisfaction scores in different perspectives, for some income would be a major factor, and for others community would be a major factor.
+However, statistically, we see that the clustering using Mclust and K-Means show a good overlap for the 4 clusters with a rand index 0.80.
+
+##############################################################################
+
+### Robust K-Means / K-Medoids
+
+```{r}
+library(cluster)
+
+# K-medoids 
+kmedoids_res <- pam(df_mod, k = 4)  # 4 clusters
+
+# Clustering results
+table(kmedoids_res$clustering)
+
+# Plot of the clusters
+ggplot(df_mod, aes(x = `Income.(0-10)`, y = `Civic.engagement.(0-10)`, color = as.factor(kmedoids_res$clustering))) +
+  geom_point(alpha = 0.8) +
+  labs(title = "K-medoids (Robust K-Means)", x = "Income", y = "Civic Engagement", color = "Cluster") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898")) +  
+  theme_minimal() +
+  theme(plot.title = element_text(hjust="0.5"))
+
+```
+
+##### Contingency Table for K-Medoids and Mclust
+
+```{r}
+
+kmedoids_clusters <- kmedoids_res$clustering
+
+
+# Contingency table comparing K-Medoids and Mclust cluster assignments
+cluster_comparison_kmedoids_mclust <- table(df_mod_k$Cluster_Mclust, kmedoids_clusters)
+
+# Adding row and column sums to the contingency table
+cluster_comparison_r_c_sum_kmedoids_mclust <- addmargins(cluster_comparison_kmedoids_mclust)
+
+# Printing the comparison
+cat("\nContingency Table: K-Medoids and Mclust Clusters Comparison\n")
+cat("\nRows: Mclust Clusters\nColumns: K-Medoids Clusters\n")
+print(cluster_comparison_r_c_sum_kmedoids_mclust)
+
+```
+
+###### Scatter Plot
+
+```{r}
+
+# Scatter plot comparing K-medoids and Mclust clustering results
+ggplot(df_mod_k, aes(x = Cluster_Mclust, y = kmedoids_clusters, color = as.factor(kmedoids_clusters))) +
+  geom_jitter(alpha = 0.9, size=2) +
+  labs(title = "Comparison of Mclust and K-medoids Clustering",
+       x = "Mclust Clusters", y = "K-medoids Clusters") +
+  scale_color_manual(values = c("#d0eab8", "#eec77d", "#ce6d1d", "#ce9898", "#740d0d")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+
+### Comparison Metrics
+
+##### Adjusted Rand INdex
+
+
+```{r}
+
+# Compute Adjusted Rand Index (ARI)
+ari_kmeans_pam <- adjustedRandIndex(kmeans_final$cluster, kmedoids_res$clustering)
+ari_kmeans_mclust <- adjustedRandIndex(kmeans_final$cluster, wb_optimal_cst$classification)
+ari_pam_mclust <- adjustedRandIndex(kmedoids_res$clustering, wb_optimal_cst$classification)
+
+```
+
+###### Output of Rand Indexes
+
+```{r}
+# Print the results
+print(paste("ARI between K-Means and K-Medoids:", ari_kmeans_pam))
+print(paste("ARI between K-Means and Mclust:", ari_kmeans_mclust))
+print(paste("ARI between K-Medoids and Mclust:", ari_pam_mclust))
+```
+
+
+We see that there is a only a minor agreement between clusters made from K-Means and K-Medoids, which is due to the reason that K-Medoids is more robust, uses representative points and doesn't work on centroids of data.
+Further, we see a strong agreement between MClust and K-Means, which means data is probably in a structure suitable for both models. 
+Also, K-Medoids is a distance based appraoch, while MClust is probabilistic approach.

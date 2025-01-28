@@ -1345,6 +1345,90 @@ print(r_squared_table)
 
 |   In summary, while all three models show substantial explanatory power for life satisfaction, the **Random Intercept with Random Slope for Education model** provides the highest overall fit, followed closely by the **Community model**. The inclusion of random slopes in both the education and community models improves the explanation of variability in life satisfaction across countries.
 
+```{r, echo=FALSE, warning=FALSE, message = FALSE, fig.width=15, fig.height=8}
+
+# Extract random effects
+random_effects_mem <- ranef(fit_mem_ri)
+
+# Plot random effects (use the random intercept and slope values)
+dotplot(random_effects_mem)
+```
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE, fig.width=15, fig.height=8}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred <- cbind(df_wb, pred = predict(fit_mem_ri))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+```
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE, fig.width=15, fig.height=8}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred_1 <- cbind(df_wb, pred = predict(fit_mem_ri_slope_edu))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+```
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE, fig.width=15, fig.height=8}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred_1 <- cbind(df_wb, pred = predict(fit_mem_ri_slope_comm))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+```
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE, fig.width=15, fig.height=8}
+plot(fit_model_1$residuals)
+
+plot(fitted(fit_model_1), residuals(fit_model_1))
+
+hist(fit_model_1$residuals, breaks = 20)
+
+qqnorm(fit_model_1$residuals)
+qqline(fit_model_1$residuals)
+
+# Residuals for Model 4 (Mixed-Effects Model)
+residuals_mem <- residuals(fit_mem_ri)
+
+# Plot residuals
+plot(residuals_mem)
+
+# Check for homoscedasticity (plot residuals vs fitted values)
+plot(fitted(fit_mem_ri), residuals_mem)
+
+# Check for normality of residuals (Histogram and Q-Q plot)
+hist(residuals_mem, breaks = 20)
+
+qqnorm(residuals_mem)
+qqline(residuals_mem)
+
+# Fitted values for Model 4 (Mixed-Effects Model)
+fitted_values_mem <- fitted(fit_mem_ri)
+
+# Plot residuals vs fitted values for homoscedasticity
+plot(fitted_values_mem, residuals_mem)
+```
+
+\newpage
 
 |   Dotplot of Random Effects from the Model with a Random Intercept and Random Slope:
 

@@ -1,0 +1,824 @@
+---
+title: "AMS_Well_Being"
+author: "Akash Mittal"
+date: "2024-12-15"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Analysis of Estimation of Different factors on Life Satisfaction Score for different countries, using OECD survey dataset.
+
+###### Loading Necessary Libraries
+
+```{r}
+# Loading the required libraries
+
+library(openxlsx) # to read and write Excel files (.xlsx) in R
+library(tidyr) # data format conversion, tidying and transforming data
+library(tidyverse) # Whole package of libraries (dplyr, tidyr, ggplot2, readr, purrr, tibble, stringr, forcats)
+
+library(reshape2) # for reshaping and transforming data
+library(fpp3) # used for forecasting in R
+library(GGally) # functionality of ggplot2 as it provides additional geoms and functions for data visualization
+
+library(lme4) # for linear mixed effects modeling + functions for fitting and analyzing linear mixed effects models
+library(insight) # functions for model-agnostic interpretation and visualization of regression models
+
+```
+
+###### Loading the dataset
+
+```{r}
+
+data = read.xlsx("OECD_Well_Being.xlsx")
+
+```
+
+###### Reading ans displaying the file
+
+```{r}
+
+str(data) # We have 447 tuples and 14 columns (25 are the attributes to analyze)
+
+```
+###### Concerting the special character .. in data for NUlls to NA
+
+```{r}
+
+data[data == ".."] <- NA
+
+```
+
+
+###### Converting the datatypes
+
+```{r}
+
+data <- data %>%
+  dplyr::mutate(
+    `Education.(0-10)` = base::as.numeric(as.character(`Education.(0-10)`)),
+    `Jobs.(0-10)`= base::as.numeric(as.character(`Jobs.(0-10)`)),
+    `Income.(0-10)`= base::as.numeric(as.character(`Income.(0-10)`)),
+    `Safety.(0-10)`= base::as.numeric(as.character(`Safety.(0-10)`)),
+    `Health.(0-10)`= base::as.numeric(as.character(`Health.(0-10)`)),
+    `Environment.(0-10)`= base::as.numeric(as.character(`Environment.(0-10)`)),
+    `Civic.engagement.(0-10)`= base::as.numeric(as.character(`Civic.engagement.(0-10)`)),
+    `Accessiblity.to.services.(0-10)`=base::as.numeric(as.character(`Accessiblity.to.services.(0-10)`)),
+    `Housing.(0-10)`= base::as.numeric(as.character(`Housing.(0-10)`)),
+    `Community.(0-10)`= base::as.numeric(as.character(`Community.(0-10)`)),
+    `Life.satisfaction.(0-10)`= base::as.numeric(as.character(`Life.satisfaction.(0-10)`))
+  )
+
+```
+
+
+###### Checking Nulls
+
+```{r}
+data_na <- colSums(is.na(data))
+
+  # sum(
+  #   length(
+  #     which(
+  #       is.na(x)
+  #       )
+  #     )
+  #   )
+
+```
+
+###### Data Summary
+
+```{r}
+summary(data)
+```
+
+###### Grouping data by country
+
+```{r}
+
+missing_values_country <- data %>%
+  group_by(Country) %>%
+  summarise(
+    Education = sum(is.na(`Education.(0-10)`)),
+    Jobs = sum(is.na(`Jobs.(0-10)`)),
+    Income = sum(is.na(`Income.(0-10)`)),
+    Safety = sum(is.na(`Safety.(0-10)`)),
+    Health = sum(is.na(`Health.(0-10)`)),
+    Environment = sum(is.na(`Environment.(0-10)`)),
+    `Civic.engagement.(0-10)` = sum(is.na(`Civic.engagement.(0-10)`)),
+    `Accessiblity.to.services.(0-10)` = sum(is.na(`Accessiblity.to.services.(0-10)`)),
+    Housing = sum(is.na(`Housing.(0-10)`)),
+    Community = sum(is.na(`Community.(0-10)`)),
+    `Life.satisfaction.(0-10)` = sum(is.na(`Life.satisfaction.(0-10)`))
+  )
+
+```
+
+```{r}
+view(missing_values_country)
+```
+
+
+### Let's impute the missing value by a median value for that country
+
+```{r}
+
+country_data_count <- data %>%
+  group_by(Country) %>%
+  count()
+
+view(country_data_count)
+
+```
+
+Since all the 10 values in Japan, and all 2 values in Iceland are missing, we are skipping Japan & Iceland from our analysis
+
+```{r}
+
+data_md <- data %>%
+  dplyr::filter(Country != 'Japan' & Country!= 'Iceland')
+
+```
+
+Let's impute the remaining values using the Medians for that country
+
+```{r}
+
+data_md <- data_md %>%
+  group_by(Country) %>%
+  dplyr::mutate(across(
+    c(
+      `Education.(0-10)`,
+      `Jobs.(0-10)`,
+      `Income.(0-10)`,
+      `Safety.(0-10)`,
+      `Health.(0-10)`,
+      `Environment.(0-10)`,
+      `Civic.engagement.(0-10)`,
+      `Accessiblity.to.services.(0-10)`,
+      `Housing.(0-10)`,
+      `Community.(0-10)`,
+      `Life.satisfaction.(0-10)`
+      ),
+    ~ ifelse(is.na(.), median(., na.rm=TRUE), .)
+  )
+  )
+
+```
+
+Also, lets make the upper limit to 10, and replace any value >10 to 10
+
+```{r}
+
+data_md <- data_md %>%
+  mutate(across(
+    where(is.numeric),
+    ~ pmin(.,10) # checks pariwise minimum value comparing with 10, and if value>10, replaces by 10
+  ))
+  
+
+```
+
+
+###### Dataframe with no Missing values (data_md), all replaced by median.
+
+```{r}
+
+# Filtering the countries with more than 10 cities 
+
+data_filtered <- data_md %>%
+  group_by(Country) %>%
+  filter(n()>10) %>%
+  ungroup()
+
+```
+
+Data Structure ->
+
+```{r}
+
+str(data_filtered)
+
+```
+
+```{r}
+
+summary(data_filtered)
+
+```
+
+```{r}
+# Also filtering out Turkey as data for Turkey is inconsistent
+data_filtered <- data_filtered %>%
+  filter(Country != "Türkiye")
+```
+
+
+```{r}
+str(data_filtered)
+```
+
+##### Now, let's plot our data and see how the values are distributed.
+
+```{r}
+#x11()
+
+p <- ggplot(data_filtered, aes(x = Country, y = `Health.(0-10)`)) +
+  geom_boxplot(aes(fill = Country), outlier.shape = 18, outlier.size = 1) +
+  #labs(title = "Health Scores Across Countries", x = "Country", y = "Health (0-10)") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme_minimal()
+
+a <- plotly::ggplotly(p)
+a
+```
+
+
+
+```{r}
+# Plotting the scatter plots of all numeric columns 
+
+data_numeric <- data_filtered %>% select(where(is.numeric))
+
+# Create the pair plot
+ggpairs(data_numeric) 
+
+```
+
+
+
+
+```{r}
+# Let's take log transformations of all the values in data set, to make and see how the data plots look
+# Not used in analysis was just used to test.
+
+data_filtered_lg <- data_filtered %>%
+  mutate(across(
+    where(is.numeric), ~ log(.)))
+
+# Create the pair plot
+#ggpairs(data_filtered_lg %>% select(where(is.numeric))) 
+
+```
+
+
+```{r}
+summary(data_filtered)
+```
+
+###############################################################################
+Exploratory Data Analysis
+
+```{r}
+
+#High-Level Distribution of Life Satisfaction
+
+# Compare life satisfaction across countries
+
+# Calculate both Average and Max Life Satisfaction for Annotation
+country_avg <- data_filtered %>%
+  group_by(Country) %>%
+  summarise(
+    Average_Life_Satisfaction = mean(`Life.satisfaction.(0-10)`, na.rm = TRUE),
+    Max_Life_Satisfaction = max(`Life.satisfaction.(0-10)`, na.rm = TRUE)
+  )
+
+# Boxplot with Average Annotations
+ggplot(data_filtered, aes(x = reorder(Country, `Life.satisfaction.(0-10)`), y = `Life.satisfaction.(0-10)`)) +
+  geom_boxplot(fill = "skyblue", color = "black") +
+  geom_text(data = country_avg, 
+            aes(x = Country, y = Max_Life_Satisfaction + 0.5, 
+                label = round(Average_Life_Satisfaction, 2)), 
+            size = 3, color = "red") +
+  coord_flip() +
+  ggtitle("Life Satisfaction by Country with Average Scores") +
+  xlab("Country") +
+  ylab("Life Satisfaction (0-10)") +
+  theme_minimal()
+
+```
+
+
+
+### Heatmap of Correlations
+
+```{r}
+library(corrplot)
+
+# Select only numeric columns for correlation
+numeric_data <- data_filtered %>% select_if(is.numeric)
+
+# Compute the correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs")
+
+# Customize the heatmap with better formatting
+corrplot(cor_matrix, 
+         method = "color",       # Use color gradient
+         type = "upper",         # Show upper triangle
+         addCoef.col = "black",  # Add correlation coefficients in black
+         tl.col = "black",       # Text labels color
+         tl.cex = 0.59,           # Text labels size
+         number.cex = 0.59)       # Coefficient size)
+
+```
+
+
+### A Holistic Comparison of Countries (Radar Chart)
+
+The radar chart highlights the Top 3 countries (Netherlands, Canada, and New Zealand) and the Bottom 3 countries (Poland, Greece, and Colombia) based on key life attributes. Netherlands leads in Jobs, Civic Engagement, and Accessibility to Services, achieving the highest Life Satisfaction. Canada excels in Housing, Environment, and Income, demonstrating a strong economic and living standard. New Zealand stands out with the best Community scores, fostering a strong sense of belonging.
+
+Among the lowest countries, Poland performs well in Education but struggles with Environment and Housing. Colombia, despite having a better Environment than expected, lags in Housing, Accessibility to Services, and especially Safety, making it the least secure. This highlights how gaps in infrastructure, safety, and education can lead to lower life satisfaction across these countries.
+
+```{r}
+
+# Calculate average life satisfaction and filter Top 3 & Bottom 3 countries
+country_ranking <- data_filtered %>%
+  group_by(Country) %>%
+  summarise(Average_Life_Satisfaction = mean(`Life.satisfaction.(0-10)`, na.rm = TRUE)) %>%
+  arrange(desc(Average_Life_Satisfaction))
+
+selected_countries <- c(
+  head(country_ranking$Country, 3),  # Top 3 countries
+  tail(country_ranking$Country, 3)   # Bottom 3 countries
+)
+
+# Aggregate radar chart data for the selected countries
+radar_data <- data_filtered %>%
+  filter(Country %in% selected_countries) %>%
+  group_by(Country) %>%
+  summarise_at(vars(`Education.(0-10)`, `Jobs.(0-10)`, `Income.(0-10)`, `Safety.(0-10)`,
+                    `Health.(0-10)`, `Environment.(0-10)`, `Civic.engagement.(0-10)`,
+                    `Accessiblity.to.services.(0-10)`, `Housing.(0-10)`, `Community.(0-10)`, 
+                    `Life.satisfaction.(0-10)`), mean, na.rm = TRUE)
+
+# Prepare radar chart data
+max_vals <- rep(10, ncol(radar_data) - 1)  # Max scaling
+min_vals <- rep(0, ncol(radar_data) - 1)   # Min scaling
+radar_chart_data <- rbind(max_vals, min_vals, radar_data[,-1])
+
+# Define vibrant colors for Top and Bottom countries
+country_colors <- c("red", "blue", "green", "purple", "orange", "darkred")  # Custom strong colors
+names(country_colors) <- radar_data$Country
+
+library(fmsb) # used for creating radar charts
+
+par(mar = c(2, 2, 2, 2), xpd = TRUE)
+
+radarchart(radar_chart_data, axistype = 1,
+           pcol = country_colors[radar_data$Country],
+           pfcol = scales::alpha(country_colors[radar_data$Country], 0.2),
+           plwd = 3, plty = 1,
+           cglcol = "grey", cglty = 1, cglwd = 0.8, vlcex = 0.7,
+           title = "Top 3 and Bottom 3 Countries - Radar Chart")
+
+legend("bottomleft", legend = radar_data$Country,
+       col = country_colors[radar_data$Country], lty = 1, lwd = 3, cex = 0.8, 
+       title = "Countries", bg = "white", box.lwd = 0)
+
+
+```
+
+### Visualizing Patterns Through Scatter Plots
+
+Finally, we created two plots to explore the relationships between Income, Civic Engagement, and Life Satisfaction:
+
+1. Plot 1: Circle Size by Life Satisfaction, Color by Country: This plot revealed that countries with larger circles (higher life satisfaction) tend to have higher income and civic engagement levels. For instance, the Netherlands and the United States dominate the upper-right region of the plot. Conversely, smaller circles in the lower-left region highlight countries like Greece, where income and civic engagement remain low.
+
+```{r}
+# Custom color palette for countries
+custom_colors <- c(
+  "Canada" = "red", "Chile" = "orange", "Colombia" = "yellow", "France" = "blue", 
+  "Germany" = "green", "Greece" = "purple", "Italy" = "cyan", "Lithuania" = "chocolate3", "Mexico" = "pink", 
+  "Netherlands" = "navy", "New Zealand" = "darkgreen", "Poland" = "brown", 
+  "Spain" = "violet", "United Kingdom" = "coral", "United States" = "darkred"
+)
+
+
+# Plot 1: Circle Size by Life Satisfaction, Color by Country
+
+plot1 <- ggplot(data_filtered, 
+                aes(x = `Income.(0-10)`, 
+                    y = `Civic.engagement.(0-10)`, 
+                    size = `Life.satisfaction.(0-10)`, 
+                    color = Country,  # Map color to Country
+                    text = paste("Region:", Region, 
+                                 "<br>Country:", Country, 
+                                 "<br>Life Satisfaction:", `Life.satisfaction.(0-10)`))) +
+  geom_point(alpha = 0.7) +  # Use only circles
+  ggtitle("Plot 1: Circle Size by Life Satisfaction, Color by Country") +
+  xlab("Income (0-10)") +
+  ylab("Civic Engagement (0-10)") +
+  theme_minimal() +
+  scale_size_continuous(range = c(3, 12), name = "Life Satisfaction") +  # Adjust circle sizes
+  scale_color_manual(values = custom_colors) +  # Custom country colors
+  guides(color = guide_legend(title = "Country"), 
+         size = guide_legend(title = "Life Satisfaction")) +
+  theme(
+    legend.position = "bottom",       # Move legend below the plot
+    legend.box = "horizontal",        # Arrange legend items horizontally
+    plot.margin = margin(10, 10, 30, 10), # Add extra margin at the bottom
+    legend.text = element_text(size = 5), # Adjust legend text size
+    legend.title = element_text(size = 5) # Adjust legend title size
+  )
+
+# Display Both Plots
+plot1
+```
+
+
+
+###############################################################################
+# Fitting the Regression Models
+
+#Model 1:Linear Regression
+
+```{r}
+
+fit_model_1 = lm(`Life.satisfaction.(0-10)` ~ ., data = data_filtered %>% select(-Country, -Region, -Code))
+summary(fit_model_1)
+```
+The basic regression model shows that Jobs, Community, Environment, and Housing are significant for the Life satisfaction score. 
+
+
+#Model 2:Linear Regression using Pairwise Interaction effects
+
+```{r}
+
+fit_model_2 <- lm(`Life.satisfaction.(0-10)` ~ .^2, data = data_filtered %>% select(-Country, -Region, -Code))
+summary(fit_model_2)
+
+```
+
+But we observe that some variables have might have interaction effects, so we build a different model, and compare with the original one using ANOVA.
+
+# Model 3: Model with Interaction effects based on relevance of factors.
+
+```{r}
+
+fit_model_3 <- lm(`Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` +
+                  `Income.(0-10)` + `Safety.(0-10)` + `Health.(0-10)` +
+                  `Environment.(0-10)` + `Civic.engagement.(0-10)` +
+                  `Accessiblity.to.services.(0-10)` + `Housing.(0-10)` + 
+                  `Community.(0-10)` + 
+                  `Education.(0-10)`:`Safety.(0-10)` + `Education.(0-10)`:`Accessiblity.to.services.(0-10)` + `Education.(0-10)`:`Housing.(0-10)`+
+                  `Jobs.(0-10)`:`Income.(0-10)` + `Jobs.(0-10)`:`Safety.(0-10)` + `Jobs.(0-10)`:`Civic.engagement.(0-10)` +
+                  `Jobs.(0-10)`:`Accessiblity.to.services.(0-10)` + `Jobs.(0-10)`:`Housing.(0-10)` +
+                  `Safety.(0-10)`:`Environment.(0-10)` +
+                  `Safety.(0-10)`:`Civic.engagement.(0-10)` +
+                  `Safety.(0-10)`:`Accessiblity.to.services.(0-10)` +
+                  `Safety.(0-10)`:`Housing.(0-10)` +
+                  `Accessiblity.to.services.(0-10)`:`Community.(0-10)`,
+                  data=data_filtered %>% select(-Country, -Region, -Code))
+summary(fit_model_3)
+
+```
+
+This model shows that “Education.(0-10)”, “Safety.(0-10)”,  “Civic.engagement.(0-10)”,  “Community.(0-10)”,  “Income.(0-10)”,  “Environment.(0-10)”,  “Safety.(0-10)”:”Accessiblity.to.services.(0-10)”,  “Education.(0-10)”:”Safety.(0-10)”,  “Education.(0-10)”:”Accessiblity.to.services.(0-10)”,  “Education.(0-10)”:”Housing.(0-10)”,  “Jobs.(0-10)”:”Housing.(0-10)”“Jobs.(0-10)”:”Income.(0-10)”,  “Jobs.(0-10)”:”Civic.engagement.(0-10)”,  “Safety.(0-10)”:”Environment.(0-10)”,  “Safety.(0-10)”:”Civic.engagement.(0-10)”,  “Safety.(0-10)”:”Housing.(0-10)”,  “Accessiblity.to.services.(0-10)”:”Community.(0-10)” shows significant contribution in life satisfaction scores.
+
+Further, the model has a low MSE as compared to the simple model.
+
+######################
+
+Parameters from the three models-
+
+### Adjusted R-square
+```{r}
+summary(fit_model_1)$adj.r.squared
+summary(fit_model_2)$adj.r.squared
+summary(fit_model_3)$adj.r.squared
+```
+### AIC
+```{r}
+AIC(fit_model_1)
+AIC(fit_model_2)
+AIC(fit_model_3)
+```
+### BIC
+```{r}
+BIC(fit_model_1)
+BIC(fit_model_2)
+BIC(fit_model_3)
+```
+### Residuals
+```{r}
+plot(fit_model_1$residuals)
+plot(fit_model_2$residuals)
+plot(fit_model_3$residuals)
+
+```
+### Normality using Q-Q Plots
+
+```{r}
+# Check for normality of residuals
+# Model 1
+hist(fit_model_1$residuals, breaks = 20)
+qqnorm(fit_model_1$residuals)
+qqline(fit_model_1$residuals)
+
+# Model 2
+hist(fit_model_2$residuals, breaks = 20)
+qqnorm(fit_model_2$residuals)
+qqline(fit_model_2$residuals)
+
+
+# Model 3
+hist(fit_model_2$residuals, breaks = 20)
+qqnorm(fit_model_2$residuals)
+qqline(fit_model_2$residuals)
+
+```
+
+###### ANOVA to check which one is better from Model 1 and Model 3
+
+```{r}
+
+anova(fit_model_1, fit_model_3)
+
+```
+
+Since the p-value is 2.2e-16 <<<< 0.05, we reject the Null Hypothesis and conclude that the Model 3 with Interaction Terms is the preferred model.
+
+
+## Since the data has hierarchical strucutre, we fit the random intercept model.
+
+###### Random Intercept Model
+
+```{r}
+
+fit_mem_ri <- lmer(
+  `Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` + `Income.(0-10)` + 
+                             `Safety.(0-10)` + `Health.(0-10)` + `Environment.(0-10)` + 
+                             `Civic.engagement.(0-10)` + 
+                            `Accessiblity.to.services.(0-10)` + 
+                             `Housing.(0-10)` + `Community.(0-10)` + 
+                             (1 | Country), 
+  data = data_filtered %>% select(-Region, -Code)
+)
+
+# Summary of the model
+summary(fit_mem_ri)
+
+aic_model_4 <- AIC(fit_mem_ri)
+bic_model_4<-  BIC(fit_mem_ri)
+
+
+```
+
+Significant Effects -> Education, Environment, Community (+ve), and Civic engagement (-ve).
+Non-significant Effects -> Jobs, Income, Safety, Health, Housing, and Accessibility to services.
+
+REML Criterion: 1131.8. Measure of model fit for restricted maximum likelihood (REML) estimation. Lower values of the REML criterion indicate a better-fitting model.
+
+
+
+######################################################################### 
+### Fitting the Random Slope and Random Intercept Model
+
+###### Random Intercept Model with Random Slope for Education
+```{r}
+fit_mem_ri_slope_edu <- lmer(
+  `Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` + `Income.(0-10)` + 
+                             `Safety.(0-10)` + `Health.(0-10)` + `Environment.(0-10)` + 
+                             `Civic.engagement.(0-10)` + `Accessiblity.to.services.(0-10)` + 
+                             `Housing.(0-10)` + `Community.(0-10)` + 
+                             (1 + `Education.(0-10)` | Country),  # Random intercept and slope for Education
+  data = data_filtered %>% select(-Region, -Code)
+)
+
+summary(fit_mem_ri_slope_edu)
+
+```
+### Random Intercept Model with Random Slope for Community
+```{r}
+fit_mem_ri_slope_comm <- lmer(
+  `Life.satisfaction.(0-10)` ~ `Education.(0-10)` + `Jobs.(0-10)` + `Income.(0-10)` + 
+                             `Safety.(0-10)` + `Health.(0-10)` + `Environment.(0-10)` + 
+                             `Civic.engagement.(0-10)` + `Accessiblity.to.services.(0-10)` + 
+                             `Housing.(0-10)` + `Community.(0-10)` + 
+                             (1 + `Community.(0-10)` | Country),  # Random intercept and slope for Education
+  data = data_filtered %>% select(-Region, -Code)
+)
+
+summary(fit_mem_ri_slope_comm)
+
+```
+
+######################################################################### 
+
+Plots for Random Intercept Model
+
+```{r}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred <- cbind(data_filtered, pred = predict(fit_mem_ri))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+
+```
+
+Plots for Random Intercept Model with Random Slope for Education
+
+```{r}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred_1 <- cbind(data_filtered, pred = predict(fit_mem_ri_slope_edu))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+```
+
+
+Plots for Random Intercept Model with Random Slope for Community
+
+```{r}
+# plotting the predicted and the original values on separate regression plots.
+
+# Create a dataframe with the original data and predicted values
+data_with_pred_1 <- cbind(data_filtered, pred = predict(fit_mem_ri_slope_comm))
+
+ggplot(data_with_pred, aes(x = `Education.(0-10)`, y = `Life.satisfaction.(0-10)`, colour = Country)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(aes(y = pred), method = "lm", se = FALSE, linewidth = 1) + 
+  facet_wrap(~ Country) + 
+  theme_minimal() + 
+  labs(title = "Regression Fit Lines for All Countries", x = "Education (0-10)", y = "Life Satisfaction (0-10)")
+```
+
+
+###
+
+```{r}
+library(MuMIn)
+r.squared_ri <- r.squaredGLMM(fit_mem_ri)
+
+r.squared_ri_s_e <- r.squaredGLMM(fit_mem_ri_slope_edu)
+
+r.squared_ri_s_c <- r.squaredGLMM(fit_mem_ri_slope_comm)
+
+# Table for data
+
+r_squared_table <- data.frame(
+  Model = c("Random Intercept Model", 
+            "Random Intercept with Random Slope for Education", 
+            "Random Intercept with Random Slope for Community"),
+  R_Squared_Marginal = c(r.squared_ri[1], r.squared_ri_s_e[1], r.squared_ri_s_c[1]),
+  R_Squared_Conditional = c(r.squared_ri[2], r.squared_ri_s_e[2], r.squared_ri_s_c[2])
+)
+
+print(r_squared_table)
+
+
+```
+
+The table shows improvement in explanation of variables by the model with a random slope for Community. Further, it is noteworthy that the improvement over base models is not significant.
+
+
+### Residual Analysis
+
+```{r}
+
+plot(fit_model_1$residuals)
+
+```
+
+```{r}
+# Check for homoscedasticity (constant variance) by plotting residuals vs fitted values
+plot(fitted(fit_model_1), residuals(fit_model_1))
+
+```
+
+```{r}
+
+# Check for normality of residuals
+hist(fit_model_1$residuals, breaks = 20)
+qqnorm(fit_model_1$residuals)
+qqline(fit_model_1$residuals)
+
+```
+
+
+```{r}
+
+# Residuals for Model 4 (Mixed-Effects Model)
+residuals_mem <- residuals(fit_mem_ri)
+
+# Plot residuals
+plot(residuals_mem)
+
+# Check for homoscedasticity (plot residuals vs fitted values)
+plot(fitted(fit_mem_ri), residuals_mem)
+
+# Check for normality of residuals (Histogram and Q-Q plot)
+hist(residuals_mem, breaks = 20)
+qqnorm(residuals_mem)
+qqline(residuals_mem)
+
+```
+```{r}
+# Fitted values for Model 4 (Mixed-Effects Model)
+fitted_values_mem <- fitted(fit_mem_ri)
+
+# Plot residuals vs fitted values for homoscedasticity
+plot(fitted_values_mem, residuals_mem)
+```
+
+### Creating Dot PLots
+
+```{r}
+
+library(lattice)
+# Extract random effects
+random_effects_mem <- ranef(fit_mem_ri)
+
+# Plot random effects (use the random intercept and slope values)
+dotplot(random_effects_mem)
+```
+
+
+```{r}
+
+library(lattice)
+# Extract random effects
+random_effects_mem_ed <- ranef(fit_mem_ri_slope_edu)
+
+# Plot random effects (use the random intercept and slope values)
+dotplot(random_effects_mem_ed)
+
+```
+
+
+```{r}
+
+library(lattice)
+# Extract random effects
+random_effects_mem_comm <- ranef(fit_mem_ri_slope_comm)
+
+# Plot random effects (use the random intercept and slope values)
+dotplot(random_effects_mem_comm)
+
+```
+
+AIC and BIC of the four models
+
+```{r}
+
+# Extract AIC and BIC for each model
+aic_model_1 <- AIC(fit_model_1)
+bic_model_1 <- BIC(fit_model_1)
+
+aic_model_2 <- AIC(fit_model_2)
+bic_model_2 <- BIC(fit_model_2)
+
+aic_model_3 <- AIC(fit_model_3)
+bic_model_3 <- BIC(fit_model_3)
+
+aic_model_4 <- AIC(fit_mem_ri)
+bic_model_4 <- BIC(fit_mem_ri)
+
+aic_model_5 <- AIC(fit_mem_ri_slope_edu)
+bic_model_5 <- BIC(fit_mem_ri_slope_edu)
+
+aic_model_6 <- AIC(fit_mem_ri_slope_comm)
+bic_model_6 <- BIC(fit_mem_ri_slope_comm)
+
+# BIC Skipped, as we created complex models, and BIC always favors simple model
+
+
+# Comparison Table
+comparison_table <- data.frame(
+  Model = c("Model 1", "Model 2", "Model 3", "Model 4 (Random Intercept)", "Model 5 (RI+S_Edu", "Model 6 (RI+S_Comm)"),
+  AIC = c(aic_model_1, aic_model_2, aic_model_3, aic_model_4, aic_model_5, aic_model_6),
+  BIC = c(bic_model_1, bic_model_2, bic_model_3, bic_model_4, bic_model_5, bic_model_6)
+)
+
+comparison_table
+
+```
+From this comparison, we see that the Interaction effect no group model gives a better fit for the data, instead of the complex models. This can be due to the fact that we lack enough data points in each category, thus making the complex models work poorly.
+
+
+
+
+
+
+
+
+
