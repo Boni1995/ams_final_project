@@ -1421,9 +1421,8 @@ comparison_table
 
 
 # Conclusion
-|   To conclude, the clustering analysis successfully grouped regions into distinct clusters, revealing significant disparities in well-being influenced by factors such as housing, community, and employment. The regression models provided robust insights into the relationships between these factors and **life satisfaction**, emphasizing the importance of **housing and community** as primary determinants, alongside **income and safety**.
 
-|   While economic factors are crucial, **social and environmental** aspects play an equally, if not more, significant role in shaping **life satisfaction**. However, future research could further refine these models by incorporating additional data and exploring temporal trends to better understand how life satisfaction evolves over time.
+|   To conclude, the clustering analysis successfully grouped regions into distinct clusters, revealing significant disparities in well-being influenced by factors such as housing, community, and employment. The regression models provided robust insights into the relationships between these factors and **life satisfaction**. Taking into account that **Model 3** provides the best balance of accuracy and complexity, we can say that the main attributes the may influence **life satisfaction** are Income, Community, and Jobs (interacting with Civic Engagement). When it comes to interactions between these attributes, we can say that Education × Accessibility to Services and Safety × Housing are the most notable. However, future research could further refine these models by incorporating additional data and exploring temporal trends to better understand how life satisfaction evolves over time.
 
 \newpage
 
